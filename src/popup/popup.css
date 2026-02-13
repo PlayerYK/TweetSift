@@ -1,0 +1,218 @@
+/* TweetSift Popup Styles */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  width: 280px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  font-size: 13px;
+  color: #e7e9ea;
+  background: #15202b;
+  line-height: 1.4;
+}
+
+.container {
+  padding: 16px;
+}
+
+/* ── 头部 ── */
+.header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.3px;
+}
+
+.subtitle {
+  font-size: 12px;
+  color: #71767b;
+}
+
+/* ── 启用开关 ── */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+}
+
+.toggle-label {
+  cursor: pointer;
+}
+
+.toggle-status {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.toggle-btn {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  border: none;
+  background: #38444d;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  padding: 0;
+}
+
+.toggle-btn.active {
+  background: #1d9bf0;
+}
+
+.toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s ease;
+  pointer-events: none;
+}
+
+.toggle-btn.active .toggle-knob {
+  transform: translateX(20px);
+}
+
+/* ── 分割线 ── */
+.divider {
+  height: 1px;
+  background: #38444d;
+  margin: 12px 0;
+}
+
+/* ── 统计 ── */
+.stats-section {
+  /* empty, reserved */
+}
+
+.stats-date {
+  font-size: 12px;
+  color: #71767b;
+  margin-bottom: 10px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  border-radius: 8px;
+  background: #1c2938;
+}
+
+.stat-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 11px;
+  color: #71767b;
+}
+
+.stat-count {
+  font-size: 18px;
+  font-weight: 700;
+  color: #e7e9ea;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 快捷键 ── */
+.section-title {
+  font-size: 12px;
+  color: #71767b;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.shortcut-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.shortcut-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: #8b98a5;
+}
+
+kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: #253341;
+  border: 1px solid #38444d;
+  color: #e7e9ea;
+  font-size: 11px;
+  font-family: "SF Mono", "Menlo", "Monaco", monospace;
+  font-weight: 500;
+  line-height: 1;
+}
+
+/* ── API 状态 ── */
+.api-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.api-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-family: "SF Mono", "Menlo", monospace;
+  color: #8b98a5;
+  padding: 3px 0;
+}
+
+.api-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.api-dot.ok {
+  background: #00ba7c;
+}
+
+.api-dot.missing {
+  background: #38444d;
+}
+
+.api-hint {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #536471;
+}

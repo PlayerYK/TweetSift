@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="popup.css">
+  <title>TweetSift</title>
+</head>
+<body>
+  <div class="container">
+    <!-- 头部 -->
+    <header class="header">
+      <h1 class="title">TweetSift</h1>
+      <span class="subtitle">推文筛子</span>
+    </header>
+
+    <!-- 启用开关 -->
+    <div class="toggle-row">
+      <label class="toggle-label" for="enableToggle">
+        <span class="toggle-status" id="toggleStatus">已启用</span>
+      </label>
+      <button class="toggle-btn active" id="enableToggle" role="switch" aria-checked="true">
+        <span class="toggle-knob"></span>
+      </button>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- 今日统计 -->
+    <section class="stats-section">
+      <div class="stats-date" id="statsDate"></div>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <span class="stat-icon">📹</span>
+          <span class="stat-label">视频</span>
+          <span class="stat-count" id="statVideo">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-icon">🍌</span>
+          <span class="stat-label">Nano</span>
+          <span class="stat-count" id="statNano">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-icon">🖼️</span>
+          <span class="stat-label">图片</span>
+          <span class="stat-count" id="statImage">0</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- 快捷键 -->
+    <section class="shortcuts-section">
+      <div class="section-title">快捷键</div>
+      <div class="shortcut-grid">
+        <div class="shortcut-item">
+          <kbd>`</kbd>
+          <span>确认推荐</span>
+        </div>
+        <div class="shortcut-item">
+          <kbd>1</kbd>
+          <span>📹 视频</span>
+        </div>
+        <div class="shortcut-item">
+          <kbd>2</kbd>
+          <span>🍌 Nano</span>
+        </div>
+        <div class="shortcut-item">
+          <kbd>3</kbd>
+          <span>🖼️ 图片</span>
+        </div>
+        <div class="shortcut-item">
+          <kbd>z</kbd>
+          <span>↩️ 撤销</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- API 状态 -->
+    <section class="api-section">
+      <div class="section-title">API 状态</div>
+      <div class="api-list" id="apiList">
+        <!-- JS 动态填充 -->
+      </div>
+      <div class="api-hint">浏览 Twitter 时自动收集</div>
+    </section>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

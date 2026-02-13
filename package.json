@@ -1,0 +1,15 @@
+{
+  "name": "tweetsift",
+  "version": "0.0.13",
+  "description": "TweetSift - Twitter Quick Bookmark Extension",
+  "private": true,
+  "scripts": {
+    "build": "node esbuild.config.js --bump=patch",
+    "watch": "node esbuild.config.js --watch",
+    "release": "node esbuild.config.js --bump=minor",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  }
+}
