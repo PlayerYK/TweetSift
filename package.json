@@ -1,6 +1,6 @@
 {
   "name": "tweetsift",
-  "version": "0.0.31",
+  "version": "0.0.33",
   "description": "TweetSift - Twitter Quick Bookmark Extension",
   "private": true,
   "scripts": {

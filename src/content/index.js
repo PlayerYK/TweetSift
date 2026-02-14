@@ -473,17 +473,22 @@ function parseTweetResult(result) {
   const tweetId = legacy.id_str || tweet.rest_id;
   if (!tweetId) return null;
 
-  // Author info
-  const userLegacy = core?.legacy || {};
-  const userProfessional = core?.professional || {};
-  const screenName = userLegacy.screen_name || '';
+  // ── User info ──
+  // New GraphQL structure nests user fields under core.core, core.avatar, etc.
+  // Fall back to core.legacy for older API responses.
+  const userCore = core?.core || {};           // { screen_name, name, created_at }
+  const userLegacy = core?.legacy || {};       // stats, banner, etc.
+  const screenName = userCore.screen_name || userLegacy.screen_name || '';
 
-  // Full text & Note Tweet text
+  // ── Full text & Note Tweet text ──
   const fullText = legacy.full_text || '';
-  const noteTweetText =
-    tweet?.note_tweet?.note_tweet_results?.result?.text || '';
+  const noteTweet = tweet?.note_tweet?.note_tweet_results?.result;
+  const noteTweetText = noteTweet?.text || '';
 
-  // Media — extract flat arrays matching reference format
+  // Note tweets may carry their own entity_set with hashtags/mentions/urls
+  const noteEntities = noteTweet?.entity_set || {};
+
+  // ── Media — extract flat arrays matching reference format ──
   const mediaEntities = legacy.extended_entities?.media || legacy.entities?.media || [];
   const mediaURLs = mediaEntities.map(m => {
     if (m.type === 'video' || m.type === 'animated_gif') {
@@ -498,16 +503,26 @@ function parseTweetResult(result) {
   const mediaTypes = mediaEntities.map(m => m.type || 'photo');
   const mediaCount = mediaEntities.length;
 
-  // URLs, hashtags, user mentions from entities
-  const expandedURLs = (legacy.entities?.urls || []).map(u => u.expanded_url || u.url || '');
-  const hashtags = (legacy.entities?.hashtags || []).map(h => h.text || '');
-  const userMentions = (legacy.entities?.user_mentions || []).map(u => u.screen_name || '');
+  // ── URLs, hashtags, user mentions ──
+  // Merge from legacy.entities and note_tweet entity_set (note tweets often
+  // have hashtags/mentions only in entity_set, not in legacy.entities).
+  const legacyUrls = (legacy.entities?.urls || []).map(u => u.expanded_url || u.url || '');
+  const noteUrls = (noteEntities.urls || []).map(u => u.expanded_url || u.url || '');
+  const expandedURLs = [...new Set([...legacyUrls, ...noteUrls])];
+
+  const legacyHashtags = (legacy.entities?.hashtags || []).map(h => h.text || '');
+  const noteHashtags = (noteEntities.hashtags || []).map(h => h.text || '');
+  const hashtags = [...new Set([...legacyHashtags, ...noteHashtags])];
+
+  const legacyMentions = (legacy.entities?.user_mentions || []).map(u => u.screen_name || '');
+  const noteMentions = (noteEntities.user_mentions || []).map(u => u.screen_name || '');
+  const userMentions = [...new Set([...legacyMentions, ...noteMentions])];
 
   return {
     tweetId,
     fullText,
     noteTweetText,
-    tweetURL: `https://twitter.com/${screenName}/status/${tweetId}`,
+    tweetURL: `https://x.com/${screenName}/status/${tweetId}`,
     mediaURLs,
     mediaTypes,
     mediaCount,
@@ -528,23 +543,24 @@ function parseTweetResult(result) {
     expandedURLs,
     hashtags,
     userMentions,
+    // User fields — prefer new top-level paths, fall back to legacy
     userId: core?.rest_id || legacy.user_id_str || '',
-    userName: userLegacy.name || '',
+    userName: userCore.name || userLegacy.name || '',
     userScreenName: screenName,
-    userDescription: userLegacy.description || '',
+    userDescription: core?.profile_bio?.description || userLegacy.description || '',
     userFollowersCount: userLegacy.followers_count || 0,
     userFriendsCount: userLegacy.friends_count || 0,
     userFavouritesCount: userLegacy.favourites_count || 0,
     userStatusesCount: userLegacy.statuses_count || 0,
     userListedCount: userLegacy.listed_count || 0,
-    userAvatarUrl: userLegacy.profile_image_url_https || '',
+    userAvatarUrl: core?.avatar?.image_url || userLegacy.profile_image_url_https || '',
     userProfileBannerUrl: userLegacy.profile_banner_url || '',
-    userLocation: userLegacy.location || '',
+    userLocation: core?.location?.location ?? userLegacy.location ?? '',
     userIsBlueVerified: !!core?.is_blue_verified,
-    userIsVerified: !!userLegacy.verified,
-    userIsProtected: !!userLegacy.protected,
-    userProfessionalType: userProfessional?.professional_type || '',
-    userCreatedAt: userLegacy.created_at || '',
+    userIsVerified: !!core?.verification?.verified || !!userLegacy.verified,
+    userIsProtected: !!core?.privacy?.protected || !!userLegacy.protected,
+    userProfessionalType: core?.professional?.professional_type || '',
+    userCreatedAt: userCore.created_at || userLegacy.created_at || '',
     scrapedAt: new Date().toISOString(),
   };
 }
