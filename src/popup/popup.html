@@ -28,24 +28,14 @@
 
     <!-- Today's stats -->
     <section class="stats-section">
-      <div class="stats-date" id="statsDate"></div>
-      <div class="stats-grid">
-        <div class="stat-item">
-          <span class="stat-icon">🍌</span>
-          <span class="stat-label">Nano</span>
-          <span class="stat-count" id="statNano">0</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-icon">📹</span>
-          <span class="stat-label">Video</span>
-          <span class="stat-count" id="statVideo">0</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-icon">🖼️</span>
-          <span class="stat-label">Image</span>
-          <span class="stat-count" id="statImage">0</span>
-        </div>
-      </div>
+      <span class="stats-date" id="statsDate"></span>
+      <span class="stats-inline">
+        🍌 <span id="statNano">0</span>
+        <span class="stats-sep">·</span>
+        📹 <span id="statVideo">0</span>
+        <span class="stats-sep">·</span>
+        🖼️ <span id="statImage">0</span>
+      </span>
     </section>
 
     <div class="divider"></div>
@@ -75,6 +65,32 @@
           <span>↩️ Undo</span>
         </div>
       </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- Export Bookmarks -->
+    <section class="export-section">
+      <div class="section-title">Export Bookmarks</div>
+      <div class="export-controls">
+        <button class="export-btn" id="loadFoldersBtn">Load Folders</button>
+        <button class="export-btn export-btn-primary" id="exportJsonBtn" style="display:none;" disabled>Export JSON</button>
+      </div>
+      <div class="export-folder-list" id="folderList" style="display:none;">
+        <!-- Populated by JS -->
+      </div>
+      <div class="export-controls" id="exportActions" style="display:none;">
+        <label class="export-select-all">
+          <input type="checkbox" id="selectAllFolders"> Select All
+        </label>
+      </div>
+      <div class="export-progress" id="exportProgress" style="display:none;">
+        <div class="export-progress-bar">
+          <div class="export-progress-fill" id="progressFill"></div>
+        </div>
+        <span class="export-progress-text" id="progressText"></span>
+      </div>
+      <div class="export-hint" id="exportHint"></div>
     </section>
 
     <div class="divider"></div>

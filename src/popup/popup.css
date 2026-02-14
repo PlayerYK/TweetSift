@@ -113,46 +113,32 @@ body {
 
 /* ── Stats ── */
 .stats-section {
-  /* empty, reserved */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #8b98a5;
 }
 
 .stats-date {
-  font-size: 12px;
   color: #71767b;
-  margin-bottom: 10px;
 }
 
-.stats-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 8px;
-}
-
-.stat-item {
+.stats-inline {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 8px 4px;
-  border-radius: 8px;
-  background: #1c2938;
-}
-
-.stat-icon {
-  font-size: 18px;
-  line-height: 1;
-}
-
-.stat-label {
-  font-size: 11px;
-  color: #71767b;
-}
-
-.stat-count {
-  font-size: 18px;
-  font-weight: 700;
-  color: #e7e9ea;
+  gap: 4px;
   font-variant-numeric: tabular-nums;
+}
+
+.stats-inline span[id] {
+  font-weight: 600;
+  color: #e7e9ea;
+}
+
+.stats-sep {
+  color: #38444d;
+  margin: 0 2px;
 }
 
 /* ── Shortcuts ── */
@@ -193,6 +179,148 @@ kbd {
   font-family: "SF Mono", "Menlo", "Monaco", monospace;
   font-weight: 500;
   line-height: 1;
+}
+
+/* ── Export Bookmarks ── */
+.export-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.export-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #38444d;
+  background: #253341;
+  color: #e7e9ea;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.export-btn:hover {
+  background: #38444d;
+}
+
+.export-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.export-btn-primary {
+  background: #1d9bf0;
+  border-color: #1d9bf0;
+  color: #fff;
+}
+
+.export-btn-primary:hover:not(:disabled) {
+  background: #1a8cd8;
+}
+
+.export-select-all {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: #8b98a5;
+  cursor: pointer;
+}
+
+.export-select-all input[type="checkbox"] {
+  accent-color: #1d9bf0;
+}
+
+.export-folder-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 180px;
+  overflow-y: auto;
+  margin-bottom: 8px;
+  padding-right: 4px;
+}
+
+.export-folder-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.export-folder-list::-webkit-scrollbar-thumb {
+  background: #38444d;
+  border-radius: 2px;
+}
+
+.export-folder-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #e7e9ea;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.export-folder-item:hover {
+  background: #1c2938;
+}
+
+.export-folder-item input[type="checkbox"] {
+  accent-color: #1d9bf0;
+  flex-shrink: 0;
+}
+
+.export-folder-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.export-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.export-progress-bar {
+  flex: 1;
+  height: 4px;
+  background: #253341;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.export-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: #1d9bf0;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.export-progress-text {
+  font-size: 11px;
+  color: #71767b;
+  white-space: nowrap;
+}
+
+.export-hint {
+  font-size: 11px;
+  color: #536471;
+}
+
+.export-hint.error {
+  color: #f4212e;
+}
+
+.export-hint.success {
+  color: #00ba7c;
 }
 
 /* ── API Status ── */
