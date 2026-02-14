@@ -1,6 +1,10 @@
 // src/background/auth.js
 // Auth info retrieval via chrome.cookies API
 
+// This is the public Bearer token used by Twitter/X's web client (twitter.com).
+// It is NOT a private API key — it is embedded in Twitter's public JavaScript
+// bundle and is used by all browser-based Twitter clients. User-level
+// authentication is handled separately via session cookies (ct0, auth_token).
 const BEARER_TOKEN =
   'Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
 
