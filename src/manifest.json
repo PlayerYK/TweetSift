@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "TweetSift - Twitter Quick Bookmark",
   "version": "0.0.0",
-  "description": "快捷键一键收藏推文到分类文件夹",
+  "description": "One-key bookmark tweets into categorized folders",
   "permissions": [
     "storage",
     "cookies",

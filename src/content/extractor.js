@@ -1,20 +1,20 @@
 // src/content/extractor.js
-// 从推文 DOM 元素中提取结构化数据
+// Extract structured data from tweet DOM elements
 
 export function extractTweetData(tweetElement) {
   if (!tweetElement) return null;
 
-  // 推文 ID：从内部 status 链接提取
+  // Tweet ID: extract from internal status link
   const link = tweetElement.querySelector('a[href*="/status/"]');
   const tweetId = link?.href.match(/status\/(\d+)/)?.[1] || null;
 
-  // 作者
+  // Author
   const author = tweetElement.querySelector('[data-testid="User-Name"]')?.textContent || '';
 
-  // 文本内容
+  // Text content
   const text = tweetElement.querySelector('[data-testid="tweetText"]')?.textContent || '';
 
-  // 媒体类型
+  // Media type
   const hasVideo = !!(
     tweetElement.querySelector('video') ||
     tweetElement.querySelector('[data-testid="videoPlayer"]')

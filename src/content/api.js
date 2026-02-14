@@ -1,14 +1,14 @@
 // src/content/api.js
-// 从 Content Script 调用 Twitter GraphQL API
+// Call Twitter GraphQL API from Content Script
 //
-// 通过注入到 main world 的脚本发起同源请求（当前为 XHR），
-// 避免 Content Script 隔离环境带来的请求差异。
+// Sends same-origin requests via injected main world script (XHR),
+// avoiding request differences from Content Script isolation.
 
 const BASE_URL = 'https://x.com/i/api/graphql';
 const BEARER_TOKEN =
   'Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
 
-// ── 注入 main world 脚本 ──
+// ── Inject main world script ──
 let injectPromise = null;
 
 function ensureInjected() {
@@ -19,12 +19,12 @@ function ensureInjected() {
     script.src = chrome.runtime.getURL('injected.js');
     script.onload = () => {
       script.remove();
-      // 给 injected script 一点时间完成初始化
+      // Give injected script time to initialize
       setTimeout(resolve, 50);
     };
     script.onerror = () => {
       script.remove();
-      resolve(); // 即使失败也继续（会超时）
+      resolve(); // Continue even on failure (will timeout)
     };
     (document.head || document.documentElement).appendChild(script);
   });
@@ -32,11 +32,11 @@ function ensureInjected() {
   return injectPromise;
 }
 
-// ── 请求 ID 计数器 & 回调池 ──
+// ── Request ID counter & callback pool ──
 let reqId = 0;
 const pending = new Map();
 
-// 监听来自 injected script 的响应
+// Listen for responses from injected script
 window.addEventListener('tweetsift-response', (e) => {
   const { id, status, statusText, body } = e.detail;
   const resolve = pending.get(id);
@@ -47,7 +47,7 @@ window.addEventListener('tweetsift-response', (e) => {
 });
 
 /**
- * 通过 injected script 发送请求
+ * Send request via injected script
  */
 async function injectedFetch(url, method, headers, body) {
   await ensureInjected();
@@ -60,17 +60,17 @@ async function injectedFetch(url, method, headers, body) {
       detail: { id, url, method, headers, body },
     }));
 
-    // 超时兜底
+    // Timeout fallback
     setTimeout(() => {
       if (pending.has(id)) {
         pending.delete(id);
-        resolve({ status: 0, statusText: 'Timeout', body: '请求超时' });
+        resolve({ status: 0, statusText: 'Timeout', body: 'Request timeout' });
       }
     }, 30000);
   });
 }
 
-// ── CSRF token ──
+// ── CSRF Token ──
 
 function getCsrfToken() {
   const match = document.cookie.match(/(?:^|;\s*)ct0=([^;]+)/);
@@ -80,7 +80,7 @@ function getCsrfToken() {
 function buildHeaders() {
   const csrfToken = getCsrfToken();
   if (!csrfToken) {
-    throw new Error('未找到 CSRF token (ct0)，请确认已登录 Twitter');
+    throw new Error('CSRF token (ct0) not found, please make sure you are logged in to Twitter');
   }
   return {
     'authorization': BEARER_TOKEN,
@@ -91,7 +91,7 @@ function buildHeaders() {
   };
 }
 
-// ── GraphQL 请求 ──
+// ── GraphQL request ──
 
 async function graphqlRequest(operationName, queryId, variables, method = 'POST') {
 
@@ -114,34 +114,34 @@ async function graphqlRequest(operationName, queryId, variables, method = 'POST'
   const { status, body: responseBody } = result;
 
   if (status === 0) {
-    throw new Error(`${operationName} 网络错误: ${responseBody}`);
+    throw new Error(`${operationName} network error: ${responseBody}`);
   }
 
   if (status >= 400) {
 
     if (status === 401) {
-      throw new Error('登录已过期，请刷新页面');
+      throw new Error('Session expired, please refresh the page');
     }
     if (status === 429) {
-      throw new Error('频率限制，请稍后重试');
+      throw new Error('Rate limited, please try again later');
     }
     if (status === 404) {
-      // 不立即清除 hash，可能只是临时问题
-      throw new Error(`${operationName} 失败(404)，请刷新页面后重试`);
+      // Don't clear hash immediately, may be temporary
+      throw new Error(`${operationName} failed (404), please refresh and retry`);
     }
-    throw new Error(`${operationName} 失败(${status})`);
+    throw new Error(`${operationName} failed (${status})`);
   }
 
   let data;
   try {
     data = JSON.parse(responseBody);
   } catch {
-    throw new Error(`${operationName} 响应解析失败`);
+    throw new Error(`${operationName} response parse failed`);
   }
   return data;
 }
 
-// ── 公开 API ──
+// ── Public API ──
 
 export async function createBookmark(queryId, tweetId) {
   return graphqlRequest('CreateBookmark', queryId, { tweet_id: tweetId });
@@ -157,6 +157,13 @@ export async function createBookmarkFolder(queryId, name) {
 
 export async function bookmarkTweetToFolder(queryId, tweetId, folderId) {
   return graphqlRequest('bookmarkTweetToFolder', queryId, {
+    tweet_id: tweetId,
+    bookmark_collection_id: folderId,
+  });
+}
+
+export async function removeTweetFromBookmarkFolder(queryId, tweetId, folderId) {
+  return graphqlRequest('RemoveTweetFromBookmarkFolder', queryId, {
     tweet_id: tweetId,
     bookmark_collection_id: folderId,
   });

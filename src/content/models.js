@@ -1,8 +1,8 @@
 // src/content/models.js
-// 模型关键词库 — 用于推文自动分类
+// Model keyword database — for tweet auto-classification
 
-// ── 视频生成模型 ──
-// 使用正则匹配以支持版本号变体
+// ── Video generation models ──
+// Uses regex matching to support version number variants
 export const VIDEO_MODEL_PATTERNS = [
   { name: 'Veo',          pattern: /\b[Vv][Ee][Oo][-\s]*(\d+(?:\.\d+)?)?/i },
   { name: 'Sora',         pattern: /\b[Ss][Oo][Rr][Aa]\s*(\d+(?:\.\d+)?)?/i },
@@ -13,21 +13,21 @@ export const VIDEO_MODEL_PATTERNS = [
   { name: 'Luma Ray',     pattern: /\b[Ll][Uu][Mm][Aa][-\s]*[Rr][Aa][Yy][-\s]*(\d+(?:\.\d+)?)?/i },
   { name: 'Luma',         pattern: /\b[Ll][Uu][Mm][Aa](?:\s+[Dd]ream\s+[Mm]achine)?[-\s]*(\d+(?:\.\d+)?)?/i },
   { name: 'LTX',          pattern: /\b[Ll][Tt][Xx][-\s]*([Pp]ro|\d+(?:\.\d+)?)?/i },
-  { name: 'Wan',          pattern: /(?:\b[Ww][Aa][Nn]|万相)[-\s]*(\d+(?:\.\d+)?)?/i },
+  { name: 'Wan',          pattern: /(?:\b[Ww][Aa][Nn])[-\s]*(\d+(?:\.\d+)?)?/i },
   { name: 'Grok Imagine', pattern: /\b[Gg][Rr][Oo][Kk](?:\s+[Ii]magine)?[-\s]*(\d+(?:\.\d+)?)?/i },
   { name: 'Seedance',     pattern: /\b[Ss][Ee][Ee][Dd][Aa][Nn][Cc][Ee][-\s]*(\d+(?:\.\d+)?(?:\s*[Pp]ro)?)?/i },
-  { name: 'Hailuo',       pattern: /(?:\b[Hh][Aa][Ii][Ll][Uu][Oo]|海螺)[-\s]*(\d+(?:\.\d+)?)?/i },
+  { name: 'Hailuo',       pattern: /(?:\b[Hh][Aa][Ii][Ll][Uu][Oo])[-\s]*(\d+(?:\.\d+)?)?/i },
 ];
 
-// ── Nano Banana Pro（特殊分类，独立文件夹）──
+// ── Nano Banana Pro (special category, separate folder) ──
 export const NANO_KEYWORDS = [
   'nano-banana', 'nanobanana', 'nano banana',
   'nano banana pro', 'nano-banana pro', 'nanobanana pro',
   'gemini', 'nanobana', 'gemini ai',
 ];
 
-// ── 图片生成模型 ──
-// key: 标准模型名, value: 关键词数组（lowercase）
+// ── Image generation models ──
+// key: standard model name, value: keyword array (lowercase)
 export const IMAGE_MODELS = {
   'Nano Banana Pro':     NANO_KEYWORDS,
   'ChatGPT Image':       ['chatgpt', 'gpt4o', 'gpt-4o', 'chat gpt'],
@@ -47,5 +47,5 @@ export const IMAGE_MODELS = {
   'Meta AI':             ['meta ai', 'meta ai image'],
 };
 
-// 所有图片模型关键词（扁平化，用于快速检查是否包含任何图片模型）
+// All image model keywords (flattened, for quick check if any image model is present)
 export const ALL_IMAGE_KEYWORDS = Object.values(IMAGE_MODELS).flat();

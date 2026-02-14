@@ -1,9 +1,9 @@
 // src/content/injected.js
-// 注入到页面 main world 的脚本
+// Script injected into page main world
 //
-// 使用 XMLHttpRequest 代替 fetch 发送请求。
-// XHR 在同源页面中发送时，浏览器的 Sec-Fetch 头处理与 fetch 不同，
-// 可能绕过 Twitter 对 fetch 的特殊检测。
+// Uses XMLHttpRequest instead of fetch to send requests.
+// XHR in same-origin pages handles Sec-Fetch headers differently from fetch,
+// which may bypass Twitter's special detection of fetch requests.
 
 (function () {
   'use strict';
@@ -15,7 +15,7 @@
     xhr.open(method || 'GET', url, true);
     xhr.withCredentials = true;
 
-    // 设置 headers
+    // Set headers
     if (headers) {
       for (const [key, value] of Object.entries(headers)) {
         try {
@@ -38,13 +38,13 @@
 
     xhr.onerror = () => {
       window.dispatchEvent(new CustomEvent('tweetsift-response', {
-        detail: { id, status: 0, statusText: 'NetworkError', body: 'XHR 网络错误' },
+        detail: { id, status: 0, statusText: 'NetworkError', body: 'XHR network error' },
       }));
     };
 
     xhr.ontimeout = () => {
       window.dispatchEvent(new CustomEvent('tweetsift-response', {
-        detail: { id, status: 0, statusText: 'Timeout', body: '请求超时' },
+        detail: { id, status: 0, statusText: 'Timeout', body: 'Request timeout' },
       }));
     };
 

@@ -1,27 +1,27 @@
 // src/content/index.js
-// TweetSift Content Script 入口
+// TweetSift Content Script entry
 //
-// 架构：Content Script 通过 injected.js（main world, XHR）调用 Twitter API，
-// Background 负责 hash 管理、文件夹缓存、撤销栈、统计。
+// Architecture: Content Script calls Twitter API via injected.js (main world, XHR).
+// Background handles hash management, folder caching, and stats.
 
 import { startViewportDetection, stopViewportDetection, getCurrentTweet } from './viewport.js';
 import { extractTweetData } from './extractor.js';
 import { classifyTweet } from './classifier.js';
 import { showToast } from './toast.js';
 import { showRecommendTag, markBookmarked, unmarkBookmarked, findTweetElement } from './highlight.js';
-import { isNativeBookmarked, createBookmarkViaNativeButton } from './bookmark-state.js';
+import { isNativeBookmarked, createBookmarkViaNativeButton, removeBookmarkViaNativeButton } from './bookmark-state.js';
 import {
-  deleteBookmark,
   bookmarkTweetToFolder,
+  removeTweetFromBookmarkFolder,
   createBookmarkFolder,
   getBookmarkFolders,
 } from './api.js';
 
-const RELOAD_MSG = '扩展已更新，请刷新页面 (F5)';
+const RELOAD_MSG = 'Extension updated, please refresh the page (F5)';
 
 /**
- * 安全发送消息到 Background
- * 如果 extension context 已失效，提示用户刷新页面并停用插件
+ * Safely send message to Background.
+ * If extension context is invalidated, prompt user to refresh and deactivate.
  */
 async function safeSend(msg) {
   try {
@@ -37,7 +37,7 @@ async function safeSend(msg) {
   }
 }
 
-// ── 状态 ──
+// ── State ──
 let isActive = false;
 let isEnabled = true;
 let currentClassification = null;
@@ -45,7 +45,7 @@ let lastUrl = location.href;
 
 const CATEGORY_LABELS = { 1: '📹', 2: '🍌', 3: '🖼️' };
 
-// ── 初始化 ──
+// ── Init ──
 async function init() {
   try {
     const response = await safeSend({ type: 'GET_ENABLED' });
@@ -57,8 +57,12 @@ async function init() {
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg.type === 'ENABLED_CHANGED') {
       isEnabled = msg.enabled;
-      if (!isEnabled) deactivate();
-      else onRouteChange(location.href);
+      if (!isEnabled) {
+        deactivate();
+      } else {
+        clearLocalBookmarkMarkers();
+        onRouteChange(location.href);
+      }
     }
   });
 
@@ -66,7 +70,7 @@ async function init() {
   onRouteChange(location.href);
 }
 
-// ── SPA 路由变化检测 ──
+// ── SPA route change detection ──
 function setupRouteDetection() {
   const urlObserver = new MutationObserver(() => {
     if (location.href !== lastUrl) {
@@ -99,7 +103,7 @@ function onRouteChange(url) {
   else deactivate();
 }
 
-// ── 激活/停用 ──
+// ── Activate / Deactivate ──
 function activate() {
   if (isActive) return;
   isActive = true;
@@ -115,11 +119,11 @@ function deactivate() {
   currentClassification = null;
 }
 
-// ── 视口目标变化回调 ──
+// ── Viewport target change callback ──
 async function onTargetChange(tweetEl) {
   if (!tweetEl) { currentClassification = null; return; }
 
-  // Twitter 原生已收藏状态优先（兼容手工收藏/其他客户端收藏）
+  // Native Twitter bookmark state takes priority
   if (isNativeBookmarked(tweetEl)) {
     if (!tweetEl.classList.contains('tweetsift-bookmarked')) {
       markBookmarked(tweetEl, '✅ 🔖');
@@ -128,7 +132,7 @@ async function onTargetChange(tweetEl) {
     return;
   }
 
-  // 回标：DOM 上没有标记且尚未查过，向 Background 查询是否已收藏
+  // Back-check: query Background if tweet was already bookmarked
   if (!tweetEl.classList.contains('tweetsift-bookmarked') && !tweetEl.dataset.tweetsiftChecked) {
     tweetEl.dataset.tweetsiftChecked = '1';
     const d = extractTweetData(tweetEl);
@@ -144,7 +148,7 @@ async function onTargetChange(tweetEl) {
     }
   }
 
-  // 已收藏的推文不再分类
+  // Skip classification for already-bookmarked tweets
   if (tweetEl.classList.contains('tweetsift-bookmarked')) { currentClassification = null; return; }
 
   const data = extractTweetData(tweetEl);
@@ -152,7 +156,7 @@ async function onTargetChange(tweetEl) {
   showRecommendTag(tweetEl, currentClassification);
 }
 
-// ── 快捷键处理 ──
+// ── Keyboard shortcuts ──
 function onKeyDown(e) {
   if (isInputFocused()) return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -167,10 +171,10 @@ function onKeyDown(e) {
 
   let category = null;
   if (key === '`') {
-    if (!currentClassification) { showToast('当前推文无推荐分类', 'error'); return; }
+    if (!currentClassification) { showToast('No recommendation for current tweet', 'error'); return; }
     category = currentClassification.category;
-  } else if (key === '1') category = 1;
-  else if (key === '2') category = 2;
+  } else if (key === '1') category = 2;  // 1 → Nano
+  else if (key === '2') category = 1;    // 2 → Video
   else if (key === '3') category = 3;
   else return;
 
@@ -178,21 +182,21 @@ function onKeyDown(e) {
   handleBookmark(category);
 }
 
-// ── 收藏操作 ──
+// ── Bookmark action ──
 async function handleBookmark(category) {
   const tweetEl = getCurrentTweet();
-  if (!tweetEl) { showToast('未找到当前推文', 'error'); return; }
+  if (!tweetEl) { showToast('Tweet not found', 'error'); return; }
 
   const data = extractTweetData(tweetEl);
-  if (!data?.tweetId) { showToast('无法获取推文 ID', 'error'); return; }
+  if (!data?.tweetId) { showToast('Cannot get tweet ID', 'error'); return; }
   if (isNativeBookmarked(tweetEl)) {
     markBookmarked(tweetEl, '✅ 🔖');
-    showToast('该推文已收藏 ✅', 'success');
+    showToast('Already bookmarked ✅', 'success');
     return;
   }
-  if (tweetEl.classList.contains('tweetsift-bookmarked')) { showToast('该推文已收藏 ✅', 'success'); return; }
+  if (tweetEl.classList.contains('tweetsift-bookmarked')) { showToast('Already bookmarked ✅', 'success'); return; }
 
-  // 1. 向 Background 获取所需信息（hash + 文件夹 ID）
+  // 1. Get required info from Background (hash + folder ID)
   let prep;
   try {
     prep = await safeSend({
@@ -208,52 +212,53 @@ async function handleBookmark(category) {
   if (!prep?.success) {
     if (prep?.duplicate) {
       markBookmarked(tweetEl, '✅');
-      showToast('该推文已收藏 ✅', 'success');
+      showToast('Already bookmarked ✅', 'success');
     } else {
-      showToast(prep?.error || '❌ 准备失败', 'error');
+      showToast(prep?.error || '❌ Preparation failed', 'error');
     }
     return;
   }
 
 
-  // 2. 如果需要创建文件夹，先处理
+  // 2. Create folder if needed
   let folder = prep.folder;
   if (prep.needCreateFolder) {
     try {
       folder = await findOrCreateFolder(prep);
     } catch (err) {
-      showToast(`❌ 文件夹创建失败: ${err.message}`, 'error');
+      showToast(`❌ Folder creation failed: ${err.message}`, 'error');
       return;
     }
   }
 
-  // 3. 先触发 Twitter 原生 CreateBookmark，再调用 bookmarkTweetToFolder 归档
+  // 3. Trigger native CreateBookmark, then call bookmarkTweetToFolder to archive
   try {
     await createBookmarkViaNativeButton(tweetEl, data.tweetId);
     await bookmarkTweetToFolder(prep.hashes.bookmarkTweetToFolder, data.tweetId, folder.id);
 
-    // 4. 通知 Background 记录成功
+    // 4. Notify Background of success
     await safeSend({
       type: 'BOOKMARK_SUCCESS',
       tweetId: data.tweetId,
       category,
+      folderId: folder.id,
     }).catch(() => {});
 
-    // 5. 视觉反馈
+    // 5. Visual feedback
     const label = `✅ ${CATEGORY_LABELS[category] || ''}`;
     markBookmarked(tweetEl, label);
     showToast(`✅ → ${folder.name}`);
 
   } catch (err) {
-    showToast(`❌ 收藏失败: ${err.message}`, 'error');
+    showToast(`❌ Bookmark failed: ${err.message}`, 'error');
   }
 }
 
-// ── 查找或创建文件夹 ──
+// ── Find or create folder ──
 async function findOrCreateFolder(prep) {
   const { folderName, category, hashes } = prep;
 
-  // 1. 查询现有文件夹列表
+  // 1. Query existing folder list
   try {
     const listResult = await getBookmarkFolders(hashes.BookmarkFoldersSlice);
     const items =
@@ -262,10 +267,9 @@ async function findOrCreateFolder(prep) {
       [];
 
     for (const item of items) {
-      // item 本身就有 id 和 name 字段
       const f = item;
       if (f?.name === folderName && f?.id) {
-        // 缓存到 Background
+        // Cache to Background
         await safeSend({
           type: 'SAVE_FOLDER', category, folderId: f.id, folderName: f.name,
         }).catch(() => {});
@@ -275,7 +279,7 @@ async function findOrCreateFolder(prep) {
   } catch {
   }
 
-  // 2. 创建新文件夹
+  // 2. Create new folder
   const createResult = await createBookmarkFolder(hashes.createBookmarkFolder, folderName);
   const folderId =
     createResult?.data?.bookmark_collection_create?.id ||
@@ -283,7 +287,7 @@ async function findOrCreateFolder(prep) {
     null;
 
   if (!folderId) {
-    throw new Error('无法获取新文件夹 ID');
+    throw new Error('Failed to get new folder ID');
   }
 
   await safeSend({
@@ -292,87 +296,49 @@ async function findOrCreateFolder(prep) {
   return { id: folderId, name: folderName };
 }
 
-// ── 撤销操作 ──
+// ── Undo bookmark ──
 async function handleUndo() {
   const currentTweet = getCurrentTweet();
   const currentData = extractTweetData(currentTweet);
-  const canCancelCurrent =
+  const canCancel =
     !!currentData?.tweetId &&
     !!currentTweet &&
     (currentTweet.classList.contains('tweetsift-bookmarked') || isNativeBookmarked(currentTweet));
 
-  if (canCancelCurrent) {
-    await handleCancelCurrentBookmark(currentTweet, currentData.tweetId);
+  if (!canCancel) {
+    showToast('Tweet not bookmarked', 'undo');
     return;
   }
 
-  // 向 Background 获取撤销信息
-  let undoInfo;
-  try {
-    undoInfo = await safeSend({ type: 'GET_UNDO_INFO' });
-  } catch (err) {
-    showToast(err.message, 'error');
-    return;
-  }
-
-  if (!undoInfo?.success) {
-    showToast(undoInfo?.error || '没有可撤销的操作', 'undo');
-    return;
-  }
-
-
-  try {
-    await deleteBookmark(undoInfo.hash, undoInfo.tweetId);
-
-    // 通知 Background 撤销成功
-    await safeSend({
-      type: 'UNDO_SUCCESS',
-      tweetId: undoInfo.tweetId,
-      category: undoInfo.category,
-    }).catch(() => {});
-
-    const tweetEl = findTweetElement(undoInfo.tweetId);
-    if (tweetEl) unmarkBookmarked(tweetEl);
-    showToast('↩️ 已撤销', 'undo');
-  } catch (err) {
-    // 告诉 Background 把操作放回栈
-    await safeSend({
-      type: 'UNDO_FAILED',
-      tweetId: undoInfo.tweetId,
-      category: undoInfo.category,
-    }).catch(() => {});
-    showToast(`撤销失败: ${err.message}`, 'error');
-  }
+  await handleCancelCurrentBookmark(currentTweet, currentData.tweetId);
 }
 
 async function handleCancelCurrentBookmark(tweetEl, tweetId) {
-  let hashResult;
   try {
-    hashResult = await safeSend({ type: 'GET_DELETE_HASH' });
-  } catch (err) {
-    showToast(err.message, 'error');
-    return;
-  }
+    // 1. Click native button to remove bookmark
+    await removeBookmarkViaNativeButton(tweetEl, tweetId);
 
-  if (!hashResult?.success || !hashResult.hash) {
-    showToast(hashResult?.error || '缺少 DeleteBookmark hash', 'error');
-    return;
-  }
+    // 2. Remove from folder (non-blocking)
+    try {
+      const hashResult = await safeSend({ type: 'GET_CANCEL_INFO', tweetId });
+      if (hashResult?.removeHash && hashResult?.folderId) {
+        await removeTweetFromBookmarkFolder(hashResult.removeHash, tweetId, hashResult.folderId);
+      }
+    } catch {}
 
-  try {
-    await deleteBookmark(hashResult.hash, tweetId);
+    // 3. Clean up local records
     await safeSend({
       type: 'CANCEL_BOOKMARK_SUCCESS',
       tweetId,
     }).catch(() => {});
     unmarkBookmarked(tweetEl);
-    showToast('已取消收藏', 'undo');
+    showToast('Bookmark removed', 'undo');
   } catch (err) {
-    showToast(`取消收藏失败: ${err.message}`, 'error');
+    showToast(`Undo failed: ${err.message}`, 'error');
   }
 }
 
-// ── 工具函数 ──
+// ── Utility functions ──
 function isInputFocused() {
   const el = document.activeElement;
   if (!el) return false;
@@ -381,6 +347,15 @@ function isInputFocused() {
   if (el.getAttribute('contenteditable') === 'true') return true;
   if (el.getAttribute('role') === 'textbox') return true;
   return false;
+}
+
+function clearLocalBookmarkMarkers() {
+  document.querySelectorAll('article[data-testid="tweet"]').forEach((tweetEl) => {
+    tweetEl.classList.remove('tweetsift-bookmarked');
+    const tag = tweetEl.querySelector('[data-tweetsift-tag]');
+    if (tag) tag.remove();
+    delete tweetEl.dataset.tweetsiftChecked;
+  });
 }
 
 init();

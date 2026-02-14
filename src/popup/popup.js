@@ -1,5 +1,5 @@
 // src/popup/popup.js
-// TweetSift Popup 页面逻辑
+// TweetSift Popup logic
 
 const REQUIRED_OPS = [
   'DeleteBookmark',
@@ -8,16 +8,26 @@ const REQUIRED_OPS = [
   'BookmarkFoldersSlice',
 ];
 
-// ── 初始化 ──
+// ── Init ──
 document.addEventListener('DOMContentLoaded', async () => {
   await loadEnabledState();
   await loadStats();
   await loadHashStatus();
   setupToggle();
+  setupTitleLink();
   setDate();
 });
 
-// ── 日期显示 ──
+// ── Title link: open x.com ──
+function setupTitleLink() {
+  const header = document.querySelector('.header');
+  header.addEventListener('click', (e) => {
+    e.preventDefault();
+    chrome.tabs.create({ url: 'https://x.com' });
+  });
+}
+
+// ── Date display ──
 function setDate() {
   const el = document.getElementById('statsDate');
   const now = new Date();
@@ -27,7 +37,7 @@ function setDate() {
   el.textContent = `📅 ${y}-${m}-${d}`;
 }
 
-// ── 启用/禁用开关 ──
+// ── Enable/Disable toggle ──
 async function loadEnabledState() {
   const response = await chrome.runtime.sendMessage({ type: 'GET_ENABLED' });
   const enabled = response?.enabled !== false;
@@ -52,17 +62,17 @@ function updateToggleUI(enabled) {
   if (enabled) {
     btn.classList.add('active');
     btn.setAttribute('aria-checked', 'true');
-    status.textContent = '已启用';
+    status.textContent = 'Enabled';
     status.style.color = '#1d9bf0';
   } else {
     btn.classList.remove('active');
     btn.setAttribute('aria-checked', 'false');
-    status.textContent = '已禁用';
+    status.textContent = 'Disabled';
     status.style.color = '#71767b';
   }
 }
 
-// ── 统计数据 ──
+// ── Stats ──
 async function loadStats() {
   const stats = await chrome.runtime.sendMessage({ type: 'GET_STATS' });
   document.getElementById('statVideo').textContent = stats?.today?.video || 0;
@@ -70,7 +80,7 @@ async function loadStats() {
   document.getElementById('statImage').textContent = stats?.today?.image || 0;
 }
 
-// ── API Hash 状态 ──
+// ── API Hash Status ──
 async function loadHashStatus() {
   const hashes = await chrome.runtime.sendMessage({ type: 'GET_HASH_STATUS' });
   const listEl = document.getElementById('apiList');
@@ -90,13 +100,13 @@ async function loadHashStatus() {
     if (!hash) missingCount++;
   }
 
-  // 更新提示文字
+  // Update hint text
   const hintEl = document.querySelector('.api-hint');
   if (missingCount === 0) {
-    hintEl.textContent = '全部就绪';
+    hintEl.textContent = 'All ready';
     hintEl.style.color = '#00ba7c';
   } else {
-    hintEl.textContent = `${missingCount} 个待捕获 — 在 Twitter 上执行一次收藏/撤销或打开书签页即可`;
+    hintEl.textContent = `${missingCount} pending — bookmark/unbookmark a tweet or open Bookmarks page on Twitter`;
     hintEl.style.color = '#f4212e';
   }
 }

@@ -1,5 +1,5 @@
 // src/background/twitter-api.js
-// Twitter GraphQL API 封装
+// Twitter GraphQL API wrapper
 
 import { getTwitterAuth, buildHeaders } from './auth.js';
 import { getQueryHash, clearQueryHash, getCapturedRequest } from './hash-watcher.js';
@@ -7,19 +7,19 @@ import { getQueryHash, clearQueryHash, getCapturedRequest } from './hash-watcher
 const BASE_URL = 'https://x.com/i/api/graphql';
 
 /**
- * 发送 GraphQL 请求
+ * Send GraphQL request
  */
 async function graphqlRequest(operationName, variables, method = 'POST') {
-  // 1. 获取 hash
+  // 1. Get hash
   const queryId = await getQueryHash(operationName);
 
   if (!queryId) {
-    throw new Error(`缺少 ${operationName} 的 hash。请在 Twitter 上手动收藏/取消收藏一条推文，插件会自动捕获`);
+    throw new Error(`Missing ${operationName} hash. Please manually bookmark/unbookmark a tweet on Twitter so the extension can capture it`);
   }
 
   const captured = getCapturedRequest(operationName);
 
-  // 2. 获取认证
+  // 2. Get auth
   let auth;
   try {
     auth = await getTwitterAuth();
@@ -30,13 +30,13 @@ async function graphqlRequest(operationName, variables, method = 'POST') {
   const headers = buildHeaders(auth.csrfToken);
   const url = `${BASE_URL}/${queryId}/${operationName}`;
 
-  // 3. 构建请求体
-  // 尝试复用 Twitter 实际请求中捕获到的 features（如果有的话）
+  // 3. Build request body
+  // Try to reuse features captured from actual Twitter requests
   let requestBody;
   if (method === 'POST') {
     const bodyObj = { variables, queryId };
 
-    // 如果捕获到了 Twitter 原始请求，提取其中的 features 字段
+    // If captured Twitter original request, extract features field
     if (captured?.body) {
       try {
         const capturedBody = JSON.parse(captured.body);
@@ -49,7 +49,7 @@ async function graphqlRequest(operationName, variables, method = 'POST') {
     requestBody = JSON.stringify(bodyObj);
   }
 
-  // 4. 发送请求
+  // 4. Send request
   let response;
   if (method === 'POST') {
 
@@ -64,11 +64,11 @@ async function graphqlRequest(operationName, variables, method = 'POST') {
       variables: JSON.stringify(variables),
     });
 
-    // GET 请求也可能需要 features
+    // GET requests may also need features
     if (captured?.body) {
       try {
-        // GET 请求中 features 可能在 URL 参数里
-        // 从捕获的 URL 中尝试提取 (暂不实现，先看 POST 是否通过)
+        // Features for GET requests may be in URL params
+        // Attempt to extract from captured URL (not yet implemented)
       } catch {}
     }
 
@@ -81,15 +81,15 @@ async function graphqlRequest(operationName, variables, method = 'POST') {
     });
   }
 
-  // 6. 错误处理
+  // 6. Error handling
   if (response.status === 401) {
-    throw new Error('登录已过期，请刷新 Twitter 页面');
+    throw new Error('Session expired, please refresh the Twitter page');
   }
 
   if (response.status === 429) {
     const resetTime = response.headers.get('x-rate-limit-reset');
     const waitSec = resetTime ? Math.ceil(Number(resetTime) - Date.now() / 1000) : 60;
-    throw new Error(`频率限制，请等待 ${waitSec} 秒`);
+    throw new Error(`Rate limited, please wait ${waitSec} seconds`);
   }
 
   if (!response.ok) {
@@ -102,15 +102,15 @@ async function graphqlRequest(operationName, variables, method = 'POST') {
       await clearQueryHash(operationName);
     }
 
-    throw new Error(`${operationName} 失败(${response.status}): ${responseText.slice(0, 200)}`);
+    throw new Error(`${operationName} failed (${response.status}): ${responseText.slice(0, 200)}`);
   }
 
-  // 7. 成功
+  // 7. Success
   const data = await response.json();
   return data;
 }
 
-// ── 具体 API 操作 ──
+// ── API operations ──
 
 export async function createBookmark(tweetId) {
   return graphqlRequest('CreateBookmark', { tweet_id: tweetId });

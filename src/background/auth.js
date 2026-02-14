@@ -1,11 +1,11 @@
 // src/background/auth.js
-// 认证信息获取 — 通过 chrome.cookies API
+// Auth info retrieval via chrome.cookies API
 
 const BEARER_TOKEN =
   'Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
 
 /**
- * 获取 Twitter 认证信息
+ * Get Twitter auth info
  * @returns {Promise<{csrfToken: string, authToken: string}>}
  */
 export async function getTwitterAuth() {
@@ -16,7 +16,7 @@ export async function getTwitterAuth() {
 
 
   if (!ct0Cookie || !authCookie) {
-    throw new Error('未登录 Twitter，请先登录');
+    throw new Error('Not logged in to Twitter, please log in first');
   }
 
   return {
@@ -26,7 +26,7 @@ export async function getTwitterAuth() {
 }
 
 /**
- * 构建 Twitter API 请求通用 headers
+ * Build common Twitter API request headers
  * @param {string} csrfToken
  * @returns {Object}
  */

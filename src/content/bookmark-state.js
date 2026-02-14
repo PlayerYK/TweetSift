@@ -1,15 +1,10 @@
 // src/content/bookmark-state.js
-// Twitter 原生书签状态探测 + CreateBookmark（通过原生按钮触发）
+// Twitter native bookmark state detection + trigger CreateBookmark / DeleteBookmark via native button
 
 const POSITIVE_ARIA_PATTERNS = [
   /remove bookmark/i,
   /remove from bookmarks/i,
   /bookmarked/i,
-  /移除书签/,
-  /取消书签/,
-  /从书签中移除/,
-  /已添加到书签/,
-  /已加入书签/,
 ];
 
 function sleep(ms) {
@@ -36,7 +31,7 @@ export function findBookmarkButton(tweetEl) {
 export function isNativeBookmarked(tweetEl) {
   if (!tweetEl) return false;
 
-  // X 的 action bar 通常在已收藏时切换为 removeBookmark
+  // X switches to removeBookmark testid when bookmarked
   if (tweetEl.querySelector('button[data-testid="removeBookmark"]')) {
     return true;
   }
@@ -53,7 +48,7 @@ export async function createBookmarkViaNativeButton(tweetEl, tweetId, options = 
   const pollMs = Number(options.pollMs) || 80;
 
   const initialTweet = tweetEl || findTweetById(tweetId);
-  if (!initialTweet) throw new Error('未找到推文元素');
+  if (!initialTweet) throw new Error('Tweet element not found');
 
   if (isNativeBookmarked(initialTweet)) {
     return { created: false };
@@ -61,7 +56,7 @@ export async function createBookmarkViaNativeButton(tweetEl, tweetId, options = 
 
   const button = findBookmarkButton(initialTweet);
   if (!button) {
-    throw new Error('未找到 Twitter 原生书签按钮');
+    throw new Error('Native bookmark button not found');
   }
 
   button.click();
@@ -75,5 +70,35 @@ export async function createBookmarkViaNativeButton(tweetEl, tweetId, options = 
     }
   }
 
-  throw new Error('CreateBookmark 超时（原生按钮未进入已收藏状态）');
+  throw new Error('CreateBookmark timeout (native button did not enter bookmarked state)');
+}
+
+export async function removeBookmarkViaNativeButton(tweetEl, tweetId, options = {}) {
+  const timeoutMs = Number(options.timeoutMs) || 3500;
+  const pollMs = Number(options.pollMs) || 80;
+
+  const initialTweet = tweetEl || findTweetById(tweetId);
+  if (!initialTweet) throw new Error('Tweet element not found');
+
+  if (!isNativeBookmarked(initialTweet)) {
+    return { removed: false };
+  }
+
+  const button = findBookmarkButton(initialTweet);
+  if (!button) {
+    throw new Error('Native bookmark button not found');
+  }
+
+  button.click();
+
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    await sleep(pollMs);
+    const liveTweet = findTweetById(tweetId) || initialTweet;
+    if (!isNativeBookmarked(liveTweet)) {
+      return { removed: true };
+    }
+  }
+
+  throw new Error('DeleteBookmark timeout (native button did not return to unbookmarked state)');
 }

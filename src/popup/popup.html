@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,16 +8,16 @@
 </head>
 <body>
   <div class="container">
-    <!-- 头部 -->
+    <!-- Header -->
     <header class="header">
-      <h1 class="title">TweetSift</h1>
-      <span class="subtitle">推文筛子</span>
+      <h1 class="title"><a href="https://x.com" id="titleLink" class="title-link">TweetSift</a></h1>
+      <span class="subtitle">open x.com</span>
     </header>
 
-    <!-- 启用开关 -->
+    <!-- Enable toggle -->
     <div class="toggle-row">
       <label class="toggle-label" for="enableToggle">
-        <span class="toggle-status" id="toggleStatus">已启用</span>
+        <span class="toggle-status" id="toggleStatus">Enabled</span>
       </label>
       <button class="toggle-btn active" id="enableToggle" role="switch" aria-checked="true">
         <span class="toggle-knob"></span>
@@ -26,23 +26,23 @@
 
     <div class="divider"></div>
 
-    <!-- 今日统计 -->
+    <!-- Today's stats -->
     <section class="stats-section">
       <div class="stats-date" id="statsDate"></div>
       <div class="stats-grid">
-        <div class="stat-item">
-          <span class="stat-icon">📹</span>
-          <span class="stat-label">视频</span>
-          <span class="stat-count" id="statVideo">0</span>
-        </div>
         <div class="stat-item">
           <span class="stat-icon">🍌</span>
           <span class="stat-label">Nano</span>
           <span class="stat-count" id="statNano">0</span>
         </div>
         <div class="stat-item">
+          <span class="stat-icon">📹</span>
+          <span class="stat-label">Video</span>
+          <span class="stat-count" id="statVideo">0</span>
+        </div>
+        <div class="stat-item">
           <span class="stat-icon">🖼️</span>
-          <span class="stat-label">图片</span>
+          <span class="stat-label">Image</span>
           <span class="stat-count" id="statImage">0</span>
         </div>
       </div>
@@ -50,42 +50,42 @@
 
     <div class="divider"></div>
 
-    <!-- 快捷键 -->
+    <!-- Shortcuts -->
     <section class="shortcuts-section">
-      <div class="section-title">快捷键</div>
+      <div class="section-title">Shortcuts</div>
       <div class="shortcut-grid">
         <div class="shortcut-item">
           <kbd>`</kbd>
-          <span>确认推荐</span>
+          <span>Accept</span>
         </div>
         <div class="shortcut-item">
           <kbd>1</kbd>
-          <span>📹 视频</span>
-        </div>
-        <div class="shortcut-item">
-          <kbd>2</kbd>
           <span>🍌 Nano</span>
         </div>
         <div class="shortcut-item">
+          <kbd>2</kbd>
+          <span>📹 Video</span>
+        </div>
+        <div class="shortcut-item">
           <kbd>3</kbd>
-          <span>🖼️ 图片</span>
+          <span>🖼️ Image</span>
         </div>
         <div class="shortcut-item">
           <kbd>z</kbd>
-          <span>↩️ 撤销</span>
+          <span>↩️ Undo</span>
         </div>
       </div>
     </section>
 
     <div class="divider"></div>
 
-    <!-- API 状态 -->
+    <!-- API Status -->
     <section class="api-section">
-      <div class="section-title">API 状态</div>
+      <div class="section-title">API Status</div>
       <div class="api-list" id="apiList">
-        <!-- JS 动态填充 -->
+        <!-- Populated by JS -->
       </div>
-      <div class="api-hint">浏览 Twitter 时自动收集</div>
+      <div class="api-hint">Auto-collected while browsing Twitter</div>
     </section>
   </div>
 

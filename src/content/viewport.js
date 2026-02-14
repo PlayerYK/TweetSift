@@ -1,18 +1,18 @@
 // src/content/viewport.js
-// 视口检测 — 识别当前屏幕中央的推文
+// Viewport detection — identify the tweet closest to screen center
 
 let currentTweet = null;
 let rafId = null;
 let lastUpdate = 0;
 const THROTTLE_MS = 100;
 
-// 当选中推文变化时的回调
+// Callback when selected tweet changes
 let onTargetChange = null;
 
 export function startViewportDetection(callback) {
   onTargetChange = callback;
   window.addEventListener('scroll', onScroll, { passive: true });
-  // 初始检测
+  // Initial detection
   updateTarget();
 }
 
@@ -46,7 +46,7 @@ function updateTarget() {
 
   for (const tweet of tweets) {
     const rect = tweet.getBoundingClientRect();
-    // 跳过不在视口内的推文
+    // Skip tweets not in viewport
     if (rect.bottom < 0 || rect.top > window.innerHeight) continue;
 
     const tweetCenter = rect.top + rect.height / 2;
@@ -59,17 +59,17 @@ function updateTarget() {
   }
 
   if (closest !== currentTweet) {
-    // 移除旧高亮（但不移除已收藏标记）
+    // Remove old highlight (but keep bookmarked marker)
     if (currentTweet && !currentTweet.classList.contains('tweetsift-bookmarked')) {
       currentTweet.classList.remove('tweetsift-highlight');
     }
-    // 添加新高亮
+    // Add new highlight
     if (closest) {
       closest.classList.add('tweetsift-highlight');
     }
     currentTweet = closest;
 
-    // 通知回调
+    // Notify callback
     if (onTargetChange) {
       onTargetChange(currentTweet);
     }

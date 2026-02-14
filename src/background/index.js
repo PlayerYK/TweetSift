@@ -1,8 +1,8 @@
 // src/background/index.js
 // TweetSift Background Service Worker
 //
-// 不直接调用 Twitter API（Service Worker 的 fetch 不带 cookie）。
-// 职责：hash 管理、文件夹缓存、撤销栈、统计、启用/禁用。
+// Does not call Twitter API directly (Service Worker fetch doesn't carry cookies).
+// Responsibilities: hash management, folder caching, stats, enable/disable.
 
 import { startHashWatcher, getHashStatus, clearQueryHash } from './hash-watcher.js';
 import { getFolderName } from './folders.js';
@@ -40,11 +40,7 @@ function normalizeStats(stats) {
   };
 }
 
-// ── 撤销操作栈 ──
-const undoStack = [];
-const MAX_UNDO = 10;
-
-// ── 统计 ──
+// ── Stats ──
 async function incrementStat(category) {
   const result = await chrome.storage.local.get(['stats']);
   const stats = normalizeStats(result.stats);
@@ -63,36 +59,28 @@ async function decrementStat(category) {
   await chrome.storage.local.set({ stats });
 }
 
-// ── 已收藏推文记录（去重用，永久历史）──
-const BOOKMARK_STORE_VERSION = 2;
-const MAX_BOOKMARK_HISTORY = 120000;
-
+// ── Bookmarked tweet records (dedup, today only) ──
 function normalizeBookmarkStore(raw) {
-  if (raw?.version === BOOKMARK_STORE_VERSION && raw?.tweets && typeof raw.tweets === 'object') {
-    return { version: BOOKMARK_STORE_VERSION, tweets: raw.tweets };
+  const today = getLocalDateKey();
+  if (raw?.date === today && raw?.tweets && typeof raw.tweets === 'object') {
+    return { date: today, tweets: raw.tweets };
   }
-
-  // 兼容 v0.0.12 的结构：{ date, tweets }，迁移后不再按天清空。
-  if (raw?.tweets && typeof raw.tweets === 'object') {
-    return { version: BOOKMARK_STORE_VERSION, tweets: { ...raw.tweets } };
-  }
-
-  return { version: BOOKMARK_STORE_VERSION, tweets: {} };
+  // Normalize legacy structure to today-only storage model.
+  return { date: today, tweets: {} };
 }
 
 async function loadBookmarkStore() {
   const result = await chrome.storage.local.get(['bookmarked']);
   const normalized = normalizeBookmarkStore(result.bookmarked);
-  const shouldMigrate =
+  const shouldReset =
     !result.bookmarked ||
-    result.bookmarked.version !== BOOKMARK_STORE_VERSION ||
+    result.bookmarked.date !== normalized.date ||
     !result.bookmarked.tweets ||
     typeof result.bookmarked.tweets !== 'object';
 
-  if (shouldMigrate) {
+  if (shouldReset) {
     await chrome.storage.local.set({ bookmarked: normalized });
   }
-
   return normalized;
 }
 
@@ -101,18 +89,9 @@ async function isBookmarked(tweetId) {
   return !!bookmarked.tweets?.[tweetId];
 }
 
-async function recordBookmark(tweetId, category) {
+async function recordBookmark(tweetId, category, folderId) {
   const bookmarked = await loadBookmarkStore();
-  bookmarked.tweets[tweetId] = { category, time: Date.now() };
-
-  const ids = Object.keys(bookmarked.tweets);
-  if (ids.length > MAX_BOOKMARK_HISTORY) {
-    ids
-      .sort((a, b) => (bookmarked.tweets[a]?.time || 0) - (bookmarked.tweets[b]?.time || 0))
-      .slice(0, ids.length - MAX_BOOKMARK_HISTORY)
-      .forEach((id) => delete bookmarked.tweets[id]);
-  }
-
+  bookmarked.tweets[tweetId] = { category, folderId: folderId || null, time: Date.now() };
   await chrome.storage.local.set({ bookmarked });
 }
 
@@ -126,42 +105,36 @@ async function removeBookmarkRecord(tweetId) {
   return record;
 }
 
-function dropUndoStackByTweetId(tweetId) {
-  if (!tweetId) return;
-  for (let i = undoStack.length - 1; i >= 0; i--) {
-    if (undoStack[i]?.tweetId === tweetId) {
-      undoStack.splice(i, 1);
-    }
-  }
+async function clearSessionCaches() {
+  await chrome.storage.local.remove(['bookmarked', 'folders', 'stats']);
 }
 
-// ── PREPARE_BOOKMARK：为 Content Script 准备收藏所需信息 ──
+// ── PREPARE_BOOKMARK: prepare bookmark info for Content Script ──
 async function handlePrepareBookmark(tweetId, category) {
 
-  // 检查启用
+  // Check enabled
   const enabledResult = await chrome.storage.local.get(['enabled']);
   if (enabledResult.enabled === false) {
-    return { success: false, error: '插件已禁用' };
+    return { success: false, error: 'Extension is disabled' };
   }
 
-  // 去重
+  // Dedup
   if (await isBookmarked(tweetId)) {
-    return { success: false, error: '该推文已收藏', duplicate: true };
+    return { success: false, error: 'Already bookmarked', duplicate: true };
   }
 
-  // 获取 hash
+  // Get hash
   const hashResult = await chrome.storage.local.get(['queryHashes']);
   const hashes = hashResult.queryHashes || {};
 
-  // CreateBookmark 由 Content Script 触发 Twitter 原生按钮完成，这里只要求归档 hash。
+  // CreateBookmark is triggered via native button by Content Script; only archive hash is required here.
   const requiredOps = ['bookmarkTweetToFolder'];
   const missing = requiredOps.filter(op => !hashes[op]);
   if (missing.length > 0) {
-    return { success: false, error: `缺少 hash: ${missing.join(', ')}。请先在 Twitter 上手动把一条推文加入书签文件夹` };
+    return { success: false, error: `Missing hash: ${missing.join(', ')}. Please manually add a tweet to a bookmark folder on Twitter first` };
   }
 
-  // 获取今日文件夹（这个需要调 API，但文件夹管理也改为让 Content Script 来创建）
-  // 先检查缓存
+  // Get today's folder (check cache first)
   const folderResult = await chrome.storage.local.get(['folders']);
   const folders = folderResult.folders || {};
   const today = getLocalDateKey();
@@ -172,16 +145,16 @@ async function handlePrepareBookmark(tweetId, category) {
     folder = folders[key];
   }
 
-  // 如果缓存中没有文件夹，返回需要的 hash 让 Content Script 去创建
+  // If no cached folder, return hashes for Content Script to create one
   const folderName = getFolderName(category);
   const needCreateFolder = !folder;
   const folderHashes = {};
   if (needCreateFolder) {
     if (!hashes['createBookmarkFolder']) {
-      return { success: false, error: '缺少 createBookmarkFolder hash。请先在 Twitter 上手动创建一个书签文件夹' };
+      return { success: false, error: 'Missing createBookmarkFolder hash. Please manually create a bookmark folder on Twitter first' };
     }
     if (!hashes['BookmarkFoldersSlice']) {
-      return { success: false, error: '缺少 BookmarkFoldersSlice hash。请先打开 Twitter 书签页面' };
+      return { success: false, error: 'Missing BookmarkFoldersSlice hash. Please open the Twitter Bookmarks page first' };
     }
     folderHashes.createBookmarkFolder = hashes['createBookmarkFolder'];
     folderHashes.BookmarkFoldersSlice = hashes['BookmarkFoldersSlice'];
@@ -191,7 +164,7 @@ async function handlePrepareBookmark(tweetId, category) {
     success: true,
     hashes: {
       bookmarkTweetToFolder: hashes['bookmarkTweetToFolder'],
-      // 可选兼容字段：不阻塞主流程
+      // Optional compatibility fields: non-blocking
       DeleteBookmark: hashes['DeleteBookmark'] || null,
       CreateBookmark: hashes['CreateBookmark'] || null,
       ...folderHashes,
@@ -203,7 +176,7 @@ async function handlePrepareBookmark(tweetId, category) {
   };
 }
 
-// ── 消息监听 ──
+// ── Message listener ──
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (msg.type === 'IS_BOOKMARKED') {
@@ -219,18 +192,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === 'BOOKMARK_SUCCESS') {
-    // Content Script 报告收藏成功
-    const { tweetId, category } = msg;
-    recordBookmark(tweetId, category);
+    // Content Script reports successful bookmark
+    const { tweetId, category, folderId } = msg;
+    recordBookmark(tweetId, category, folderId);
     incrementStat(category);
-    undoStack.push({ tweetId, category, timestamp: Date.now() });
-    if (undoStack.length > MAX_UNDO) undoStack.shift();
     sendResponse({ success: true });
     return true;
   }
 
   if (msg.type === 'SAVE_FOLDER') {
-    // Content Script 创建了文件夹后保存到缓存
+    // Content Script created a folder, save to cache
     const { category, folderId, folderName } = msg;
     const key = { 1: 'video', 2: 'nano', 3: 'image' }[category];
     const today = getLocalDateKey();
@@ -249,62 +220,26 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  if (msg.type === 'GET_UNDO_INFO') {
-    const action = undoStack.pop();
-    if (!action) {
-      sendResponse({ success: false, error: '没有可撤销的操作' });
-      return true;
-    }
-    chrome.storage.local.get(['queryHashes'], (result) => {
-      const hashes = result.queryHashes || {};
-      const hash = hashes['DeleteBookmark'];
-      if (!hash) {
-        // 放回去
-        undoStack.push(action);
-        sendResponse({ success: false, error: '缺少 DeleteBookmark hash' });
-      } else {
-        sendResponse({
-          success: true,
-          tweetId: action.tweetId,
-          category: action.category,
-          hash,
-        });
-      }
-    });
-    return true;
-  }
-
-  if (msg.type === 'GET_DELETE_HASH') {
-    chrome.storage.local.get(['queryHashes'], (result) => {
-      const hashes = result.queryHashes || {};
-      const hash = hashes['DeleteBookmark'];
-      if (!hash) {
-        sendResponse({ success: false, error: '缺少 DeleteBookmark hash' });
-      } else {
-        sendResponse({ success: true, hash });
-      }
-    });
-    return true;
-  }
-
-  if (msg.type === 'UNDO_SUCCESS') {
-    removeBookmarkRecord(msg.tweetId);
-    decrementStat(msg.category);
-    sendResponse({ success: true });
-    return true;
-  }
-
-  if (msg.type === 'UNDO_FAILED') {
-    // 撤销失败，把操作放回栈
-    undoStack.push({ tweetId: msg.tweetId, category: msg.category, timestamp: Date.now() });
-    sendResponse({ success: true });
+  if (msg.type === 'GET_CANCEL_INFO') {
+    (async () => {
+      const [hashResult, bookmarked] = await Promise.all([
+        chrome.storage.local.get(['queryHashes']),
+        loadBookmarkStore(),
+      ]);
+      const hashes = hashResult.queryHashes || {};
+      const record = bookmarked.tweets?.[msg.tweetId] || null;
+      sendResponse({
+        success: true,
+        removeHash: hashes['RemoveTweetFromBookmarkFolder'] || null,
+        folderId: record?.folderId || null,
+      });
+    })();
     return true;
   }
 
   if (msg.type === 'CANCEL_BOOKMARK_SUCCESS') {
     (async () => {
       const record = await removeBookmarkRecord(msg.tweetId);
-      dropUndoStackByTweetId(msg.tweetId);
       if (record?.category) {
         await decrementStat(record.category);
       }
@@ -321,15 +256,25 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === 'SET_ENABLED') {
-    const enabled = !!msg.enabled;
-    chrome.storage.local.set({ enabled });
-    updateIcon(enabled);
-    chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] }, (tabs) => {
-      for (const tab of tabs) {
-        chrome.tabs.sendMessage(tab.id, { type: 'ENABLED_CHANGED', enabled }).catch(() => {});
+    (async () => {
+      const enabled = !!msg.enabled;
+      const result = await chrome.storage.local.get(['enabled']);
+      const wasEnabled = result.enabled !== false;
+      const shouldClear = enabled && !wasEnabled;
+
+      await chrome.storage.local.set({ enabled });
+      if (shouldClear) {
+        await clearSessionCaches();
       }
-    });
-    sendResponse({ success: true });
+
+      updateIcon(enabled);
+      chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] }, (tabs) => {
+        for (const tab of tabs) {
+          chrome.tabs.sendMessage(tab.id, { type: 'ENABLED_CHANGED', enabled }).catch(() => {});
+        }
+      });
+      sendResponse({ success: true, cacheCleared: shouldClear });
+    })();
     return true;
   }
 
@@ -350,14 +295,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === 'INVALIDATE_HASH') {
-    // Content Script 报告某个 hash 返回 404，清除缓存
+    // Content Script reports a hash returned 404, clear cache
     const { operationName } = msg;
     clearQueryHash(operationName).then(() => sendResponse({ success: true }));
     return true;
   }
 });
 
-// ── 图标状态 ──
+// ── Icon state ──
 function updateIcon(enabled) {
   if (enabled) {
     chrome.action.setIcon({ path: { 16: 'icons/icon16.png', 48: 'icons/icon48.png', 128: 'icons/icon128.png' } });
@@ -369,13 +314,13 @@ function updateIcon(enabled) {
   }
 }
 
-// ── 初始化 ──
+// ── Init ──
 async function init() {
-  // 保留已缓存的 queryHashes，遇到 404 时再按需清除
+  // Keep cached queryHashes, clear on 404 as needed
   const result = await chrome.storage.local.get(['queryHashes']);
   startHashWatcher();
 
-  // 启动时修正统计日期基准，确保“今日统计”按本地日期滚动
+  // Normalize stats date on startup, ensure today's stats roll over by local date
   const statsResult = await chrome.storage.local.get(['stats']);
   const normalizedStats = normalizeStats(statsResult.stats);
   if (JSON.stringify(normalizedStats) !== JSON.stringify(statsResult.stats || {})) {

@@ -1,6 +1,6 @@
 /* TweetSift Content Styles */
 
-/* 当前选中推文 - 蓝色高亮 */
+/* Currently selected tweet - blue highlight */
 .tweetsift-highlight {
   outline: 2px solid rgba(29, 155, 240, 0.5) !important;
   outline-offset: -2px;
@@ -9,20 +9,20 @@
   position: relative;
 }
 
-/* 已收藏推文 - 绿色标记 */
+/* Bookmarked tweet - green marker */
 .tweetsift-bookmarked {
   outline: 2px solid rgba(0, 186, 124, 0.5) !important;
   outline-offset: -2px;
   border-left: 3px solid rgba(0, 186, 124, 0.8) !important;
 }
 
-/* 已收藏推文不再显示蓝色高亮 */
+/* Bookmarked tweet should not show blue highlight */
 .tweetsift-bookmarked.tweetsift-highlight {
   outline-color: rgba(0, 186, 124, 0.5) !important;
   border-left-color: rgba(0, 186, 124, 0.8) !important;
 }
 
-/* 分类标签（收藏后显示） */
+/* Category tag (shown after bookmark) */
 .tweetsift-tag {
   position: absolute;
   top: 8px;
@@ -38,7 +38,7 @@
   line-height: 1.4;
 }
 
-/* 推荐标签（收藏前显示） */
+/* Recommendation tag (shown before bookmark) */
 .tweetsift-recommend {
   position: absolute;
   top: 8px;
@@ -53,7 +53,7 @@
   line-height: 1.4;
 }
 
-/* Toast 通知容器 — 统一在页面中上部居中 */
+/* Toast notification container - centered at top of page */
 .tweetsift-toast {
   position: fixed;
   top: 20px;

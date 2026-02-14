@@ -1,26 +1,27 @@
 // src/background/hash-watcher.js
-// 动态提取 Twitter GraphQL query hash
+// Dynamically extract Twitter GraphQL query hashes
 
 const GRAPHQL_URL_RE =
   /^https:\/\/(x\.com|twitter\.com)\/i\/api\/graphql\/([^/]+)\/([^/?]+)/;
 
-// 需要收集的操作名
+// Operation names to collect
 const REQUIRED_OPS = [
   'CreateBookmark',
   'DeleteBookmark',
   'createBookmarkFolder',
   'bookmarkTweetToFolder',
   'BookmarkFoldersSlice',
+  'RemoveTweetFromBookmarkFolder',
 ];
 
-// 已失效的 hash（404 后标记，避免重复使用）
+// Invalidated hashes (marked after 404, to avoid reuse)
 const invalidHashes = new Set();
 
-// 缓存最近一次捕获到的 requestBody（兼容旧调试接口）
+// Cache last captured requestBody (for debug interface)
 const capturedRequests = {};
 
 /**
- * 启动 webRequest 监听
+ * Start webRequest listener
  */
 export function startHashWatcher() {
   chrome.webRequest.onBeforeRequest.addListener(
@@ -30,16 +31,16 @@ export function startHashWatcher() {
 
       const [, , queryId, operationName] = match;
 
-      // 捕获 POST 请求的 requestBody（保留给调试接口）
+      // Capture POST request body (for debug interface)
       if (details.requestBody) {
-        let bodyStr = '(无法解析)';
+        let bodyStr = '(unable to parse)';
         if (details.requestBody.raw && details.requestBody.raw.length > 0) {
           try {
             const decoder = new TextDecoder();
             const bytes = details.requestBody.raw[0].bytes;
             bodyStr = decoder.decode(bytes);
           } catch {
-            bodyStr = '(无法解析)';
+            bodyStr = '(unable to parse)';
           }
         } else if (details.requestBody.formData) {
           bodyStr = JSON.stringify(details.requestBody.formData);
@@ -70,7 +71,7 @@ export function startHashWatcher() {
 }
 
 /**
- * 获取指定操作的 query hash（只返回动态捕获的）
+ * Get query hash for a specific operation (only returns dynamically captured ones)
  */
 export async function getQueryHash(operationName) {
   const result = await chrome.storage.local.get(['queryHashes']);
@@ -85,7 +86,7 @@ export async function getQueryHash(operationName) {
 }
 
 /**
- * 标记指定操作的 hash 为失效
+ * Mark a specific operation's hash as invalidated
  */
 export async function clearQueryHash(operationName) {
   invalidHashes.add(operationName);
@@ -96,14 +97,14 @@ export async function clearQueryHash(operationName) {
 }
 
 /**
- * 获取 Twitter 实际请求的捕获信息（供调试用）
+ * Get captured Twitter request info (for debugging)
  */
 export function getCapturedRequest(operationName) {
   return capturedRequests[operationName] || null;
 }
 
 /**
- * 获取所有 hash 的收集状态
+ * Get collection status of all hashes
  */
 export async function getHashStatus() {
   const result = await chrome.storage.local.get(['queryHashes']);

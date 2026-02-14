@@ -19,12 +19,13 @@ body {
   padding: 16px;
 }
 
-/* ── 头部 ── */
+/* ── Header ── */
 .header {
   display: flex;
   align-items: baseline;
   gap: 8px;
   margin-bottom: 14px;
+  cursor: pointer;
 }
 
 .title {
@@ -34,12 +35,27 @@ body {
   letter-spacing: -0.3px;
 }
 
-.subtitle {
-  font-size: 12px;
-  color: #71767b;
+.title-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
 }
 
-/* ── 启用开关 ── */
+.title-link:hover {
+  color: #1d9bf0;
+}
+
+.subtitle {
+  font-size: 11px;
+  color: #536471;
+  cursor: pointer;
+}
+
+.header:hover .subtitle {
+  color: #1d9bf0;
+}
+
+/* ── Enable toggle ── */
 .toggle-row {
   display: flex;
   align-items: center;
@@ -88,14 +104,14 @@ body {
   transform: translateX(20px);
 }
 
-/* ── 分割线 ── */
+/* ── Divider ── */
 .divider {
   height: 1px;
   background: #38444d;
   margin: 12px 0;
 }
 
-/* ── 统计 ── */
+/* ── Stats ── */
 .stats-section {
   /* empty, reserved */
 }
@@ -139,7 +155,7 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* ── 快捷键 ── */
+/* ── Shortcuts ── */
 .section-title {
   font-size: 12px;
   color: #71767b;
@@ -179,7 +195,7 @@ kbd {
   line-height: 1;
 }
 
-/* ── API 状态 ── */
+/* ── API Status ── */
 .api-list {
   display: flex;
   flex-direction: column;

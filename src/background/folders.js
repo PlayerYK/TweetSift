@@ -1,16 +1,16 @@
 // src/background/folders.js
-// 文件夹命名工具 — 仅负责生成文件夹名称
-// 实际文件夹创建/查询 API 调用由 Content Script 发起
+// Folder naming utility — only responsible for generating folder names.
+// Actual folder creation/query API calls are made by Content Script.
 
-// 分类到文件夹后缀的映射
+// Category to folder suffix mapping
 const CATEGORY_SUFFIX = {
-  1: '视频',
+  1: 'Video',
   2: 'Nano',
-  3: '图片',
+  3: 'Image',
 };
 
 /**
- * 获取今日日期字符串 yyMMDD
+ * Get today's date string yyMMDD
  */
 function getTodayPrefix() {
   const now = new Date();
@@ -21,9 +21,9 @@ function getTodayPrefix() {
 }
 
 /**
- * 生成文件夹名称
- * @param {number} category - 1=视频, 2=Nano, 3=图片
- * @returns {string} 如 "260210-视频"
+ * Generate folder name
+ * @param {number} category - 1=Video, 2=Nano, 3=Image
+ * @returns {string} e.g. "260210-Video"
  */
 export function getFolderName(category) {
   const prefix = getTodayPrefix();
