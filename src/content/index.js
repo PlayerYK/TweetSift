@@ -15,6 +15,7 @@ import {
   removeTweetFromBookmarkFolder,
   createBookmarkFolder,
   getBookmarkFolders,
+  getBookmarkFolderTimeline,
 } from './api.js';
 
 const RELOAD_MSG = 'Extension updated, please refresh the page (F5)';
@@ -54,7 +55,7 @@ async function init() {
     isEnabled = true;
   }
 
-  chrome.runtime.onMessage.addListener((msg) => {
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'ENABLED_CHANGED') {
       isEnabled = msg.enabled;
       if (!isEnabled) {
@@ -63,6 +64,21 @@ async function init() {
         clearLocalBookmarkMarkers();
         onRouteChange(location.href);
       }
+      return;
+    }
+
+    if (msg.type === 'GET_BOOKMARK_FOLDERS') {
+      handleGetBookmarkFolders(msg).then(sendResponse).catch(err => {
+        sendResponse({ success: false, error: err.message });
+      });
+      return true;
+    }
+
+    if (msg.type === 'FETCH_FOLDER_BOOKMARKS') {
+      handleFetchFolderBookmarks(msg).then(sendResponse).catch(err => {
+        sendResponse({ success: false, error: err.message });
+      });
+      return true;
     }
   });
 
@@ -356,6 +372,144 @@ function clearLocalBookmarkMarkers() {
     if (tag) tag.remove();
     delete tweetEl.dataset.tweetsiftChecked;
   });
+}
+
+// ── Export: Get bookmark folders ──
+async function handleGetBookmarkFolders(msg) {
+  const { queryId } = msg;
+  if (!queryId) throw new Error('Missing BookmarkFoldersSlice queryId');
+
+  const result = await getBookmarkFolders(queryId);
+  const items =
+    result?.data?.viewer?.user_results?.result?.bookmark_collections_slice?.items ||
+    result?.data?.bookmark_collections_slice?.items ||
+    [];
+
+  const folders = items
+    .filter(item => item?.id && item?.name)
+    .map(item => ({ id: item.id, name: item.name }));
+
+  return { success: true, folders };
+}
+
+// ── Export: Fetch all bookmarks in a folder (paginated) ──
+async function handleFetchFolderBookmarks(msg) {
+  const { queryId, folderId } = msg;
+  if (!queryId) throw new Error('Missing BookmarkFolderTimeline queryId');
+  if (!folderId) throw new Error('Missing folderId');
+
+  const allTweets = [];
+  let cursor = null;
+  let pageCount = 0;
+  const MAX_PAGES = 100; // Safety limit
+
+  while (pageCount < MAX_PAGES) {
+    const result = await getBookmarkFolderTimeline(queryId, folderId, cursor);
+
+    const instructions =
+      result?.data?.bookmark_collection_timeline?.timeline?.instructions ||
+      result?.data?.bookmark_collection_timeline_v2?.timeline?.instructions ||
+      [];
+
+    let entries = [];
+    let nextCursor = null;
+
+    for (const instruction of instructions) {
+      // First page uses 'entries', subsequent pages use 'moduleItems' or 'entries'
+      const items = instruction.entries || instruction.moduleItems || [];
+      for (const entry of items) {
+        const entryType = entry?.entryId || '';
+
+        // Cursor entries
+        if (entryType.startsWith('cursor-bottom-') || entryType.startsWith('cursor-bottom')) {
+          nextCursor =
+            entry?.content?.value ||
+            entry?.content?.itemContent?.value ||
+            null;
+          continue;
+        }
+        if (entryType.startsWith('cursor-top-') || entryType.startsWith('cursor-top')) {
+          continue;
+        }
+
+        // Tweet entries
+        const tweetResult =
+          entry?.content?.itemContent?.tweet_results?.result ||
+          entry?.content?.items?.[0]?.item?.itemContent?.tweet_results?.result ||
+          null;
+
+        if (tweetResult) {
+          const parsed = parseTweetResult(tweetResult);
+          if (parsed) entries.push(parsed);
+        }
+      }
+    }
+
+    allTweets.push(...entries);
+    pageCount++;
+
+    if (!nextCursor || entries.length === 0) break;
+    cursor = nextCursor;
+
+    // Rate limit protection: random 5-10s delay between pages
+    const delay = 5000 + Math.random() * 5000;
+    await new Promise(resolve => setTimeout(resolve, delay));
+  }
+
+  return { success: true, tweets: allTweets };
+}
+
+// ── Parse a single tweet result from GraphQL response ──
+function parseTweetResult(result) {
+  if (!result) return null;
+
+  // Handle tweet with visibility results wrapper
+  const tweet = result.tweet || result;
+  const legacy = tweet?.legacy;
+  const core = tweet?.core?.user_results?.result;
+
+  if (!legacy) return null;
+
+  const tweetId = legacy.id_str || tweet.rest_id;
+  if (!tweetId) return null;
+
+  // Author info
+  const userLegacy = core?.legacy || {};
+  const author = {
+    screen_name: userLegacy.screen_name || '',
+    name: userLegacy.name || '',
+  };
+
+  // Media
+  const media = (legacy.extended_entities?.media || legacy.entities?.media || []).map(m => ({
+    type: m.type || 'photo',
+    url: m.media_url_https || m.url || '',
+    expanded_url: m.expanded_url || '',
+    video_url: m.video_info?.variants
+      ?.filter(v => v.content_type === 'video/mp4')
+      ?.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))
+      ?.[0]?.url || undefined,
+  }));
+
+  // Metrics
+  const metrics = {
+    likes: legacy.favorite_count || 0,
+    retweets: legacy.retweet_count || 0,
+    replies: legacy.reply_count || 0,
+    bookmarks: legacy.bookmark_count || 0,
+    views: parseInt(tweet?.views?.count) || 0,
+  };
+
+  return {
+    id: tweetId,
+    url: `https://x.com/${author.screen_name}/status/${tweetId}`,
+    author,
+    text: legacy.full_text || '',
+    created_at: legacy.created_at || '',
+    media: media.length > 0 ? media : undefined,
+    metrics,
+    lang: legacy.lang || undefined,
+  };
 }
 
 init();

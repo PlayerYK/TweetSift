@@ -93,7 +93,7 @@ function buildHeaders() {
 
 // ── GraphQL request ──
 
-async function graphqlRequest(operationName, queryId, variables, method = 'POST') {
+async function graphqlRequest(operationName, queryId, variables, method = 'POST', features = null) {
 
   const headers = buildHeaders();
   const url = `${BASE_URL}/${queryId}/${operationName}`;
@@ -104,9 +104,13 @@ async function graphqlRequest(operationName, queryId, variables, method = 'POST'
     const body = JSON.stringify({ variables, queryId });
     result = await injectedFetch(url, 'POST', headers, body);
   } else {
-    const params = new URLSearchParams({
+    const paramObj = {
       variables: JSON.stringify(variables),
-    });
+    };
+    if (features) {
+      paramObj.features = JSON.stringify(features);
+    }
+    const params = new URLSearchParams(paramObj);
     const fullUrl = `${url}?${params}`;
     result = await injectedFetch(fullUrl, 'GET', headers, null);
   }
@@ -171,4 +175,62 @@ export async function removeTweetFromBookmarkFolder(queryId, tweetId, folderId) 
 
 export async function getBookmarkFolders(queryId) {
   return graphqlRequest('BookmarkFoldersSlice', queryId, {}, 'GET');
+}
+
+// Features required by Twitter's BookmarkFolderTimeline endpoint
+const TIMELINE_FEATURES = {
+  graphql_timeline_v2_bookmark_timeline: true,
+  rweb_tipjar_consumption_enabled: true,
+  responsive_web_graphql_exclude_directive_enabled: true,
+  verified_phone_label_enabled: false,
+  creator_subscriptions_tweet_preview_api_enabled: true,
+  responsive_web_graphql_timeline_navigation_enabled: true,
+  responsive_web_graphql_skip_user_profile_image_extensions_enabled: false,
+  communities_web_enable_tweet_community_results_fetch: true,
+  c9s_tweet_anatomy_moderator_badge_enabled: true,
+  articles_preview_enabled: true,
+  responsive_web_edit_tweet_api_enabled: true,
+  tweetypie_unmention_optimization_enabled: true,
+  responsive_web_enhance_cards_enabled: false,
+  responsive_web_media_download_video_enabled: false,
+  responsive_web_twitter_article_tweet_consumption_enabled: true,
+  tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled: true,
+  creator_subscriptions_quote_tweet_preview_enabled: false,
+  freedom_of_speech_not_reach_fetch_enabled: true,
+  standardized_nudges_misinfo: true,
+  tweet_awards_web_tipping_enabled: false,
+  longform_notetweets_inline_media_enabled: true,
+  responsive_web_text_conversations_enabled: false,
+  longform_notetweets_rich_text_read_enabled: true,
+  longform_notetweets_consumption_enabled: true,
+  responsive_web_home_pinned_timelines_enabled: true,
+  premium_content_api_read_enabled: false,
+  view_counts_everywhere_api_enabled: true,
+  // Additional required features
+  responsive_web_jetfuel_frame: false,
+  responsive_web_grok_analysis_button_from_backend: false,
+  responsive_web_grok_analyze_button_fetch_trends_enabled: false,
+  responsive_web_grok_community_note_auto_translation_is_enabled: false,
+  responsive_web_profile_redirect_enabled: false,
+  responsive_web_grok_show_grok_translated_post: false,
+  responsive_web_grok_share_attachment_enabled: false,
+  post_ctas_fetch_enabled: false,
+  rweb_video_screen_enabled: false,
+  responsive_web_grok_analyze_post_followups_enabled: false,
+  responsive_web_grok_annotations_enabled: false,
+  responsive_web_grok_imagine_annotation_enabled: false,
+  graphql_is_translatable_rweb_tweet_is_translatable_enabled: true,
+  responsive_web_grok_image_annotation_enabled: false,
+  profile_label_improvements_pcf_label_in_post_enabled: false,
+};
+
+export async function getBookmarkFolderTimeline(queryId, folderId, cursor = null) {
+  const variables = {
+    bookmark_collection_id: folderId,
+    count: 20,
+  };
+  if (cursor) {
+    variables.cursor = cursor;
+  }
+  return graphqlRequest('BookmarkFolderTimeline', queryId, variables, 'GET', TIMELINE_FEATURES);
 }

@@ -12,6 +12,7 @@ const REQUIRED_OPS = [
   'bookmarkTweetToFolder',
   'BookmarkFoldersSlice',
   'RemoveTweetFromBookmarkFolder',
+  'BookmarkFolderTimeline',
 ];
 
 // Invalidated hashes (marked after 404, to avoid reuse)

@@ -300,7 +300,174 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     clearQueryHash(operationName).then(() => sendResponse({ success: true }));
     return true;
   }
+
+  // ── Export: relay to content script ──
+  if (msg.type === 'EXPORT_GET_FOLDERS') {
+    (async () => {
+      try {
+        const hashResult = await chrome.storage.local.get(['queryHashes']);
+        const hashes = hashResult.queryHashes || {};
+        const queryId = hashes['BookmarkFoldersSlice'];
+        if (!queryId) {
+          sendResponse({ success: false, error: 'Missing BookmarkFoldersSlice hash. Please open the Twitter Bookmarks page first' });
+          return;
+        }
+
+        const tab = await findTwitterTab();
+        if (!tab) {
+          sendResponse({ success: false, error: 'No Twitter tab found. Please open x.com first' });
+          return;
+        }
+
+        const result = await chrome.tabs.sendMessage(tab.id, {
+          type: 'GET_BOOKMARK_FOLDERS',
+          queryId,
+        });
+        sendResponse(result);
+      } catch (err) {
+        sendResponse({ success: false, error: err.message });
+      }
+    })();
+    return true;
+  }
+
+  // Start a batch export job (runs in background, survives popup close)
+  if (msg.type === 'EXPORT_START') {
+    if (exportState.running) {
+      sendResponse({ success: false, error: 'An export is already running' });
+    } else {
+      sendResponse({ success: true });
+      runExportJob(msg.folders); // fire and forget
+    }
+    return true;
+  }
+
+  // Popup polls this to show progress and download results
+  if (msg.type === 'EXPORT_STATUS') {
+    sendResponse({
+      running: exportState.running,
+      totalFolders: exportState.totalFolders,
+      completedFolders: exportState.completedFolders,
+      currentFolder: exportState.currentFolder,
+      phase: exportState.phase,
+      results: exportState.results,
+      error: exportState.error,
+    });
+    return true;
+  }
+
+  // Popup clears state after it has downloaded all results
+  if (msg.type === 'EXPORT_CLEAR') {
+    resetExportState();
+    sendResponse({ success: true });
+    return true;
+  }
 });
+
+// ── Export state (persists across popup open/close) ──
+const exportState = {
+  running: false,
+  totalFolders: 0,
+  completedFolders: 0,
+  currentFolder: '',
+  phase: 'idle',    // 'fetching' | 'waiting' | 'idle'
+  results: [],      // { folderName, folderId, success, tweets, error }
+  error: null,
+};
+
+function resetExportState() {
+  exportState.running = false;
+  exportState.totalFolders = 0;
+  exportState.completedFolders = 0;
+  exportState.currentFolder = '';
+  exportState.phase = 'idle';
+  exportState.results = [];
+  exportState.error = null;
+}
+
+async function runExportJob(folders) {
+  resetExportState();
+  exportState.running = true;
+  exportState.totalFolders = folders.length;
+
+  try {
+    const hashResult = await chrome.storage.local.get(['queryHashes']);
+    const hashes = hashResult.queryHashes || {};
+    const queryId = hashes['BookmarkFolderTimeline'];
+    if (!queryId) {
+      exportState.error = 'Missing BookmarkFolderTimeline hash. Please open a bookmark folder on Twitter first';
+      exportState.running = false;
+      return;
+    }
+
+    const tab = await findTwitterTab();
+    if (!tab) {
+      exportState.error = 'No Twitter tab found. Please open x.com first';
+      exportState.running = false;
+      return;
+    }
+
+    for (let i = 0; i < folders.length; i++) {
+      const folder = folders[i];
+      exportState.currentFolder = folder.name;
+      exportState.phase = 'fetching';
+
+      try {
+        const result = await chrome.tabs.sendMessage(tab.id, {
+          type: 'FETCH_FOLDER_BOOKMARKS',
+          queryId,
+          folderId: folder.id,
+        });
+
+        if (result?.success) {
+          exportState.results.push({
+            folderName: folder.name,
+            folderId: folder.id,
+            success: true,
+            tweets: result.tweets || [],
+          });
+        } else {
+          exportState.results.push({
+            folderName: folder.name,
+            folderId: folder.id,
+            success: false,
+            error: result?.error || 'Unknown error',
+          });
+        }
+      } catch (err) {
+        exportState.results.push({
+          folderName: folder.name,
+          folderId: folder.id,
+          success: false,
+          error: err.message,
+        });
+      }
+
+      exportState.completedFolders = i + 1;
+
+      // Wait between folders (5-10s random)
+      if (i < folders.length - 1) {
+        exportState.phase = 'waiting';
+        const delay = 5000 + Math.random() * 5000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  } catch (err) {
+    exportState.error = err.message;
+  } finally {
+    exportState.running = false;
+    exportState.phase = 'idle';
+    exportState.currentFolder = '';
+  }
+}
+
+// ── Find an active Twitter tab ──
+async function findTwitterTab() {
+  const tabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
+  if (tabs.length === 0) return null;
+  // Prefer active tab, otherwise first match
+  return tabs.find(t => t.active) || tabs[0];
+}
 
 // ── Icon state ──
 function updateIcon(enabled) {
