@@ -475,40 +475,77 @@ function parseTweetResult(result) {
 
   // Author info
   const userLegacy = core?.legacy || {};
-  const author = {
-    screen_name: userLegacy.screen_name || '',
-    name: userLegacy.name || '',
-  };
+  const userProfessional = core?.professional || {};
+  const screenName = userLegacy.screen_name || '';
 
-  // Media
-  const media = (legacy.extended_entities?.media || legacy.entities?.media || []).map(m => ({
-    type: m.type || 'photo',
-    url: m.media_url_https || m.url || '',
-    expanded_url: m.expanded_url || '',
-    video_url: m.video_info?.variants
-      ?.filter(v => v.content_type === 'video/mp4')
-      ?.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))
-      ?.[0]?.url || undefined,
-  }));
+  // Full text & Note Tweet text
+  const fullText = legacy.full_text || '';
+  const noteTweetText =
+    tweet?.note_tweet?.note_tweet_results?.result?.text || '';
 
-  // Metrics
-  const metrics = {
-    likes: legacy.favorite_count || 0,
-    retweets: legacy.retweet_count || 0,
-    replies: legacy.reply_count || 0,
-    bookmarks: legacy.bookmark_count || 0,
-    views: parseInt(tweet?.views?.count) || 0,
-  };
+  // Media — extract flat arrays matching reference format
+  const mediaEntities = legacy.extended_entities?.media || legacy.entities?.media || [];
+  const mediaURLs = mediaEntities.map(m => {
+    if (m.type === 'video' || m.type === 'animated_gif') {
+      const bestVariant = m.video_info?.variants
+        ?.filter(v => v.content_type === 'video/mp4')
+        ?.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))
+        ?.[0];
+      return bestVariant?.url || m.media_url_https || m.url || '';
+    }
+    return m.media_url_https || m.url || '';
+  });
+  const mediaTypes = mediaEntities.map(m => m.type || 'photo');
+  const mediaCount = mediaEntities.length;
+
+  // URLs, hashtags, user mentions from entities
+  const expandedURLs = (legacy.entities?.urls || []).map(u => u.expanded_url || u.url || '');
+  const hashtags = (legacy.entities?.hashtags || []).map(h => h.text || '');
+  const userMentions = (legacy.entities?.user_mentions || []).map(u => u.screen_name || '');
 
   return {
-    id: tweetId,
-    url: `https://x.com/${author.screen_name}/status/${tweetId}`,
-    author,
-    text: legacy.full_text || '',
-    created_at: legacy.created_at || '',
-    media: media.length > 0 ? media : undefined,
-    metrics,
-    lang: legacy.lang || undefined,
+    tweetId,
+    fullText,
+    noteTweetText,
+    tweetURL: `https://twitter.com/${screenName}/status/${tweetId}`,
+    mediaURLs,
+    mediaTypes,
+    mediaCount,
+    createdAt: legacy.created_at || '',
+    conversationId: legacy.conversation_id_str || '',
+    replyCount: legacy.reply_count || 0,
+    retweetCount: legacy.retweet_count || 0,
+    favoriteCount: legacy.favorite_count || 0,
+    quoteCount: legacy.quote_count || 0,
+    bookmarkCount: legacy.bookmark_count || 0,
+    viewCount: tweet?.views?.count || '0',
+    favorited: !!legacy.favorited,
+    retweeted: !!legacy.retweeted,
+    bookmarked: !!legacy.bookmarked,
+    isQuoteStatus: !!legacy.is_quote_status,
+    possiblySensitive: !!legacy.possibly_sensitive,
+    language: legacy.lang || '',
+    expandedURLs,
+    hashtags,
+    userMentions,
+    userId: core?.rest_id || legacy.user_id_str || '',
+    userName: userLegacy.name || '',
+    userScreenName: screenName,
+    userDescription: userLegacy.description || '',
+    userFollowersCount: userLegacy.followers_count || 0,
+    userFriendsCount: userLegacy.friends_count || 0,
+    userFavouritesCount: userLegacy.favourites_count || 0,
+    userStatusesCount: userLegacy.statuses_count || 0,
+    userListedCount: userLegacy.listed_count || 0,
+    userAvatarUrl: userLegacy.profile_image_url_https || '',
+    userProfileBannerUrl: userLegacy.profile_banner_url || '',
+    userLocation: userLegacy.location || '',
+    userIsBlueVerified: !!core?.is_blue_verified,
+    userIsVerified: !!userLegacy.verified,
+    userIsProtected: !!userLegacy.protected,
+    userProfessionalType: userProfessional?.professional_type || '',
+    userCreatedAt: userLegacy.created_at || '',
+    scrapedAt: new Date().toISOString(),
   };
 }
 
