@@ -84,9 +84,9 @@ async function loadBookmarkStore() {
   return normalized;
 }
 
-async function isBookmarked(tweetId) {
+async function getBookmarkRecord(tweetId) {
   const bookmarked = await loadBookmarkStore();
-  return !!bookmarked.tweets?.[tweetId];
+  return bookmarked.tweets?.[tweetId] || null;
 }
 
 async function recordBookmark(tweetId, category, folderId) {
@@ -119,7 +119,7 @@ async function handlePrepareBookmark(tweetId, category) {
   }
 
   // Dedup
-  if (await isBookmarked(tweetId)) {
+  if (await getBookmarkRecord(tweetId)) {
     return { success: false, error: 'Already bookmarked', duplicate: true };
   }
 
@@ -180,8 +180,8 @@ async function handlePrepareBookmark(tweetId, category) {
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (msg.type === 'IS_BOOKMARKED') {
-    isBookmarked(msg.tweetId).then(result => {
-      sendResponse({ bookmarked: result });
+    getBookmarkRecord(msg.tweetId).then(record => {
+      sendResponse({ bookmarked: !!record, category: record?.category || null });
     });
     return true;
   }

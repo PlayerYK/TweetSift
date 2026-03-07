@@ -139,16 +139,7 @@ function deactivate() {
 async function onTargetChange(tweetEl) {
   if (!tweetEl) { currentClassification = null; return; }
 
-  // Native Twitter bookmark state takes priority
-  if (isNativeBookmarked(tweetEl)) {
-    if (!tweetEl.classList.contains('tweetsift-bookmarked')) {
-      markBookmarked(tweetEl, '✅ 🔖');
-    }
-    currentClassification = null;
-    return;
-  }
-
-  // Back-check: query Background if tweet was already bookmarked
+  // Check cache for category info (covers both native-bookmarked and TweetSift-bookmarked tweets)
   if (!tweetEl.classList.contains('tweetsift-bookmarked') && !tweetEl.dataset.tweetsiftChecked) {
     tweetEl.dataset.tweetsiftChecked = '1';
     const d = extractTweetData(tweetEl);
@@ -156,12 +147,22 @@ async function onTargetChange(tweetEl) {
       try {
         const resp = await safeSend({ type: 'IS_BOOKMARKED', tweetId: d.tweetId });
         if (resp?.bookmarked) {
-          markBookmarked(tweetEl, '✅');
+          const label = resp.category ? '✅ ' + CATEGORY_LABELS[resp.category] : '✅ 🔖';
+          markBookmarked(tweetEl, label);
           currentClassification = null;
           return;
         }
       } catch {}
     }
+  }
+
+  // Native Twitter bookmark without cache record
+  if (isNativeBookmarked(tweetEl)) {
+    if (!tweetEl.classList.contains('tweetsift-bookmarked')) {
+      markBookmarked(tweetEl, '✅ 🔖');
+    }
+    currentClassification = null;
+    return;
   }
 
   // Skip classification for already-bookmarked tweets
@@ -206,7 +207,13 @@ async function handleBookmark(category) {
   const data = extractTweetData(tweetEl);
   if (!data?.tweetId) { showToast('Cannot get tweet ID', 'error'); return; }
   if (isNativeBookmarked(tweetEl)) {
-    markBookmarked(tweetEl, '✅ 🔖');
+    try {
+      const resp = await safeSend({ type: 'IS_BOOKMARKED', tweetId: data.tweetId });
+      const label = resp?.category ? '✅ ' + CATEGORY_LABELS[resp.category] : '✅ 🔖';
+      markBookmarked(tweetEl, label);
+    } catch {
+      markBookmarked(tweetEl, '✅ 🔖');
+    }
     showToast('Already bookmarked ✅', 'success');
     return;
   }
