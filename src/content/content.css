@@ -1,7 +1,7 @@
 /* TweetSift Content Styles */
 
 /* Currently selected tweet - blue highlight */
-.tweetsift-highlight {
+[data-tweetsift-highlight] {
   outline: 2px solid rgba(29, 155, 240, 0.5) !important;
   outline-offset: -2px;
   border-left: 3px solid rgba(29, 155, 240, 0.8) !important;
@@ -17,7 +17,7 @@
 }
 
 /* Bookmarked tweet should not show blue highlight */
-.tweetsift-bookmarked.tweetsift-highlight {
+.tweetsift-bookmarked[data-tweetsift-highlight] {
   outline-color: rgba(0, 186, 124, 0.5) !important;
   border-left-color: rgba(0, 186, 124, 0.8) !important;
 }

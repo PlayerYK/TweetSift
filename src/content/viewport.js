@@ -23,7 +23,7 @@ export function stopViewportDetection() {
     rafId = null;
   }
   if (currentTweet) {
-    currentTweet.classList.remove('tweetsift-highlight');
+    currentTweet.removeAttribute('data-tweetsift-highlight');
     currentTweet = null;
   }
   onTargetChange = null;
@@ -61,11 +61,11 @@ function updateTarget() {
   if (closest !== currentTweet) {
     // Remove old highlight (but keep bookmarked marker)
     if (currentTweet && !currentTweet.classList.contains('tweetsift-bookmarked')) {
-      currentTweet.classList.remove('tweetsift-highlight');
+      currentTweet.removeAttribute('data-tweetsift-highlight');
     }
     // Add new highlight
     if (closest) {
-      closest.classList.add('tweetsift-highlight');
+      closest.setAttribute('data-tweetsift-highlight', '');
     }
     currentTweet = closest;
 

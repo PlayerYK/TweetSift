@@ -476,8 +476,7 @@ function updateIcon(enabled) {
     chrome.action.setBadgeText({ text: '' });
   } else {
     chrome.action.setIcon({ path: { 16: 'icons/icon16-gray.png', 48: 'icons/icon48-gray.png', 128: 'icons/icon128-gray.png' } });
-    chrome.action.setBadgeText({ text: 'OFF' });
-    chrome.action.setBadgeBackgroundColor({ color: '#666' });
+    chrome.action.setBadgeText({ text: '' });
   }
 }
 
