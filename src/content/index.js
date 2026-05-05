@@ -19,6 +19,8 @@ import {
 } from './api.js';
 
 const RELOAD_MSG = 'Extension updated, please refresh the page (F5)';
+const AUTHOR_LOOKUP_BATCH_SIZE = 4;
+const OEMBED_URL = 'https://publish.twitter.com/oembed';
 
 /**
  * Safely send message to Background.
@@ -406,6 +408,7 @@ async function handleFetchFolderBookmarks(msg) {
   if (!folderId) throw new Error('Missing folderId');
 
   const allTweets = [];
+  const exportDebug = createExportDebugCapture(msg.debugCapture, folderId);
   let cursor = null;
   let pageCount = 0;
   const MAX_PAGES = 100; // Safety limit
@@ -446,13 +449,23 @@ async function handleFetchFolderBookmarks(msg) {
           null;
 
         if (tweetResult) {
-          const parsed = parseTweetResult(tweetResult);
+          const parsed = parseTweetResult(tweetResult, {
+            page: pageCount + 1,
+            entryId: entryType,
+            cursorUsed: cursor,
+          }, exportDebug);
           if (parsed) entries.push(parsed);
         }
       }
     }
 
     allTweets.push(...entries);
+    recordExportDebugPage(exportDebug, {
+      page: pageCount + 1,
+      cursorUsed: cursor,
+      tweetCount: entries.length,
+      nextCursor,
+    });
     pageCount++;
 
     if (!nextCursor || entries.length === 0) break;
@@ -463,17 +476,85 @@ async function handleFetchFolderBookmarks(msg) {
     await new Promise(resolve => setTimeout(resolve, delay));
   }
 
-  return { success: true, tweets: allTweets };
+  await hydrateMissingAuthorInfo(allTweets, exportDebug);
+  return {
+    success: true,
+    tweets: allTweets,
+    debug: finalizeExportDebugCapture(exportDebug),
+  };
+}
+
+async function hydrateMissingAuthorInfo(tweets, exportDebug) {
+  const missing = tweets.filter(tweet =>
+    tweet?.tweetId &&
+    (!tweet.userName || !tweet.userScreenName)
+  );
+  if (missing.length === 0) return;
+
+  // X occasionally omits the author block on the final bookmark page.
+  // Use the public oEmbed endpoint to repair the display name/handle only.
+  for (let i = 0; i < missing.length; i += AUTHOR_LOOKUP_BATCH_SIZE) {
+    const batch = missing.slice(i, i + AUTHOR_LOOKUP_BATCH_SIZE);
+    const resolved = await Promise.all(batch.map(async tweet => ({
+      tweet,
+      author: await lookupTweetAuthor(tweet.tweetId),
+    })));
+
+    for (const { tweet, author } of resolved) {
+      if (!author) continue;
+      if (!tweet.userName) tweet.userName = author.userName;
+      if (!tweet.userScreenName) tweet.userScreenName = author.userScreenName;
+      if (author.tweetURL) tweet.tweetURL = author.tweetURL;
+      recordExportDebugRepair(exportDebug, tweet, author);
+    }
+  }
+}
+
+async function lookupTweetAuthor(tweetId) {
+  try {
+    const url = new URL(OEMBED_URL);
+    url.searchParams.set('url', `https://twitter.com/i/status/${tweetId}`);
+    url.searchParams.set('omit_script', 'true');
+    url.searchParams.set('dnt', 'true');
+
+    const response = await fetch(url.toString(), { credentials: 'omit' });
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    const userName = data?.author_name || '';
+    const userScreenName = getScreenNameFromUrl(data?.author_url || '');
+
+    if (!userName && !userScreenName) return null;
+
+    return {
+      userName,
+      userScreenName,
+      tweetURL: userScreenName ? `https://x.com/${userScreenName}/status/${tweetId}` : '',
+    };
+  } catch (error) {
+    console.warn('TweetSift author lookup failed:', tweetId, error);
+    return null;
+  }
+}
+
+function getScreenNameFromUrl(urlString) {
+  if (!urlString) return '';
+  try {
+    const pathname = new URL(urlString).pathname;
+    return pathname.split('/').filter(Boolean)[0] || '';
+  } catch {
+    return '';
+  }
 }
 
 // ── Parse a single tweet result from GraphQL response ──
-function parseTweetResult(result) {
+function parseTweetResult(result, context = null, exportDebug = null) {
   if (!result) return null;
 
   // Handle tweet with visibility results wrapper
   const tweet = result.tweet || result;
-  const legacy = tweet?.legacy;
-  const core = tweet?.core?.user_results?.result;
+  const legacy = tweet?.legacy || result?.legacy;
+  const core = tweet?.core?.user_results?.result || null;
 
   if (!legacy) return null;
 
@@ -481,11 +562,22 @@ function parseTweetResult(result) {
   if (!tweetId) return null;
 
   // ── User info ──
-  // New GraphQL structure nests user fields under core.core, core.avatar, etc.
-  // Fall back to core.legacy for older API responses.
+  // Only parse the observed web payload path here.
+  // Missing author blocks are repaired later via public oEmbed + optional debug capture.
   const userCore = core?.core || {};           // { screen_name, name, created_at }
   const userLegacy = core?.legacy || {};       // stats, banner, etc.
   const screenName = userCore.screen_name || userLegacy.screen_name || '';
+  const userName = userCore.name || userLegacy.name || '';
+
+  if (!screenName && !userName) {
+    recordMissingAuthorDebug(exportDebug, {
+      context,
+      tweetId,
+      legacy,
+      result,
+      tweet,
+    });
+  }
 
   // ── Full text & Note Tweet text ──
   const fullText = legacy.full_text || '';
@@ -552,7 +644,7 @@ function parseTweetResult(result) {
     userMentions,
     // User fields — prefer new top-level paths, fall back to legacy
     userId: core?.rest_id || legacy.user_id_str || '',
-    userName: userCore.name || userLegacy.name || '',
+    userName,
     userScreenName: screenName,
     userDescription: core?.profile_bio?.description || userLegacy.description || '',
     userFollowersCount: userLegacy.followers_count || 0,
@@ -569,6 +661,61 @@ function parseTweetResult(result) {
     userProfessionalType: core?.professional?.professional_type || '',
     userCreatedAt: userCore.created_at || userLegacy.created_at || '',
     scrapedAt: new Date().toISOString(),
+  };
+}
+
+function createExportDebugCapture(enabled, folderId) {
+  if (!enabled) return null;
+  return {
+    enabled: true,
+    folderId,
+    generatedAt: new Date().toISOString(),
+    pages: [],
+    missingAuthorEntries: [],
+    repairs: [],
+  };
+}
+
+function recordExportDebugPage(exportDebug, pageInfo) {
+  if (!exportDebug) return;
+  exportDebug.pages.push(pageInfo);
+}
+
+function recordMissingAuthorDebug(exportDebug, payload) {
+  if (!exportDebug) return;
+  const { context, tweetId, legacy, result, tweet } = payload;
+  exportDebug.missingAuthorEntries.push({
+    page: context?.page || null,
+    entryId: context?.entryId || '',
+    cursorUsed: context?.cursorUsed || null,
+    tweetId,
+    authorProbe: {
+      hasTweetWrapper: tweet !== result,
+      hasLegacyUserId: !!legacy?.user_id_str,
+      hasCoreUserResult: !!tweet?.core?.user_results?.result,
+      resultKeys: Object.keys(result || {}),
+      tweetKeys: Object.keys(tweet || {}),
+    },
+    tweetResult: result,
+  });
+}
+
+function recordExportDebugRepair(exportDebug, tweet, author) {
+  if (!exportDebug) return;
+  exportDebug.repairs.push({
+    tweetId: tweet.tweetId,
+    userName: author.userName,
+    userScreenName: author.userScreenName,
+    tweetURL: author.tweetURL,
+  });
+}
+
+function finalizeExportDebugCapture(exportDebug) {
+  if (!exportDebug) return null;
+  return {
+    ...exportDebug,
+    missingAuthorCount: exportDebug.missingAuthorEntries.length,
+    repairCount: exportDebug.repairs.length,
   };
 }
 

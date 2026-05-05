@@ -337,7 +337,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse({ success: false, error: 'An export is already running' });
     } else {
       sendResponse({ success: true });
-      runExportJob(msg.folders); // fire and forget
+      runExportJob(msg.folders, { debugCapture: !!msg.debugCapture }); // fire and forget
     }
     return true;
   }
@@ -385,7 +385,7 @@ function resetExportState() {
   exportState.error = null;
 }
 
-async function runExportJob(folders) {
+async function runExportJob(folders, options = {}) {
   resetExportState();
   exportState.running = true;
   exportState.totalFolders = folders.length;
@@ -417,6 +417,7 @@ async function runExportJob(folders) {
           type: 'FETCH_FOLDER_BOOKMARKS',
           queryId,
           folderId: folder.id,
+          debugCapture: !!options.debugCapture,
         });
 
         if (result?.success) {
@@ -425,6 +426,7 @@ async function runExportJob(folders) {
             folderId: folder.id,
             success: true,
             tweets: result.tweets || [],
+            debug: result.debug || null,
           });
         } else {
           exportState.results.push({

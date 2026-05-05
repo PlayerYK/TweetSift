@@ -102,6 +102,11 @@ async function graphqlRequest(operationName, variables, method = 'POST') {
       await clearQueryHash(operationName);
     }
 
+    if (response.status === 503) {
+      // Service Unavailable - could be rate limit, expired hash, or Twitter server issue
+      throw new Error(`${operationName} failed (503): Twitter API temporarily unavailable. Hash may be expired - try clearing cache and recapturing operations.`);
+    }
+
     throw new Error(`${operationName} failed (${response.status}): ${responseText.slice(0, 200)}`);
   }
 

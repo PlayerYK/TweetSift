@@ -1,23 +1,34 @@
 // src/popup/popup.js
 // TweetSift Popup logic
 
-const REQUIRED_OPS = [
-  'DeleteBookmark',
-  'createBookmarkFolder',
-  'bookmarkTweetToFolder',
-  'BookmarkFoldersSlice',
-  'BookmarkFolderTimeline',
+// Operations needed for extension to work
+const CORE_OPS = [
+  'bookmarkTweetToFolder',        // Essential: add tweet to folder
+  'createBookmarkFolder',         // Essential: create new folder
+  'BookmarkFoldersSlice',         // Essential: list folders
 ];
+
+const OPTIONAL_OPS = [
+  'CreateBookmark',               // Optional: can use native button
+  'DeleteBookmark',               // Optional: can use native button
+  'RemoveTweetFromBookmarkFolder', // Optional: only for undo feature
+  'BookmarkFolderTimeline',       // Optional: only for export feature
+];
+
+const REQUIRED_OPS = [...CORE_OPS, ...OPTIONAL_OPS];
+const EXPORT_DEBUG_KEY = 'exportDebugCapture';
 
 // ── Init ──
 document.addEventListener('DOMContentLoaded', async () => {
   await loadEnabledState();
   await loadStats();
   await loadHashStatus();
+  await loadExportDebugState();
   setupToggle();
   setupTitleLink();
   setDate();
   setupExport();
+  setupDiagnostics();
 });
 
 // ── Title link: open x.com ──
@@ -86,29 +97,68 @@ async function loadStats() {
 async function loadHashStatus() {
   const hashes = await chrome.runtime.sendMessage({ type: 'GET_HASH_STATUS' });
   const listEl = document.getElementById('apiList');
+  const statusMsg = document.getElementById('apiStatusMessage');
   listEl.innerHTML = '';
 
-  let missingCount = 0;
+  let missingCore = 0;
+  let missingOptional = 0;
 
-  for (const op of REQUIRED_OPS) {
+  // Core operations
+  for (const op of CORE_OPS) {
     const hash = hashes?.[op];
     const item = document.createElement('div');
     item.className = 'api-item';
     item.innerHTML = `
       <span class="api-dot ${hash ? 'ok' : 'missing'}"></span>
-      <span>${op}</span>
+      <span class="api-name">${op}</span>
+      <span class="api-badge core">Core</span>
+      <span class="api-hash">${hash ? hash.slice(0, 8) + '...' : 'Not captured'}</span>
     `;
     listEl.appendChild(item);
-    if (!hash) missingCount++;
+    if (!hash) missingCore++;
+  }
+
+  // Optional operations
+  for (const op of OPTIONAL_OPS) {
+    const hash = hashes?.[op];
+    const item = document.createElement('div');
+    item.className = 'api-item';
+    item.innerHTML = `
+      <span class="api-dot ${hash ? 'ok' : 'missing'}"></span>
+      <span class="api-name">${op}</span>
+      <span class="api-badge optional">Optional</span>
+      <span class="api-hash">${hash ? hash.slice(0, 8) + '...' : 'Not captured'}</span>
+    `;
+    listEl.appendChild(item);
+    if (!hash) missingOptional++;
+  }
+
+  // Update status message
+  if (missingCore === 0 && missingOptional === 0) {
+    statusMsg.textContent = '✅ All API hashes captured';
+    statusMsg.className = 'api-status-message success';
+  } else if (missingCore === 0) {
+    statusMsg.textContent = `✅ Core hashes ready (${missingOptional} optional missing)`;
+    statusMsg.className = 'api-status-message success';
+  } else if (missingCore === CORE_OPS.length) {
+    statusMsg.textContent = '❌ No core API hashes captured yet';
+    statusMsg.className = 'api-status-message error';
+  } else {
+    statusMsg.textContent = `⚠️ Missing ${missingCore} core hash(es)`;
+    statusMsg.className = 'api-status-message warning';
   }
 
   // Update hint text
-  const hintEl = document.querySelector('.api-hint');
-  if (missingCount === 0) {
-    hintEl.textContent = 'All ready';
+  const hintEl = document.getElementById('apiHint');
+  if (missingCore === 0) {
+    if (missingOptional === 0) {
+      hintEl.textContent = 'Extension is ready to use (all features available)';
+    } else {
+      hintEl.textContent = `Extension is ready (${missingOptional} optional features unavailable)`;
+    }
     hintEl.style.color = '#00ba7c';
   } else {
-    hintEl.textContent = `${missingCount} pending — bookmark/unbookmark a tweet or open Bookmarks page on Twitter`;
+    hintEl.textContent = `Click the ? button for instructions`;
     hintEl.style.color = '#f4212e';
   }
 }
@@ -122,9 +172,19 @@ function setupExport() {
   document.getElementById('loadFoldersBtn').addEventListener('click', handleLoadFolders);
   document.getElementById('exportJsonBtn').addEventListener('click', handleExportJson);
   document.getElementById('selectAllFolders').addEventListener('change', handleSelectAll);
+  document.getElementById('exportDebugToggle').addEventListener('change', handleExportDebugToggle);
 
   // Check if an export is already running (popup was reopened)
   checkExportStatus();
+}
+
+async function loadExportDebugState() {
+  const result = await chrome.storage.local.get([EXPORT_DEBUG_KEY]);
+  document.getElementById('exportDebugToggle').checked = !!result[EXPORT_DEBUG_KEY];
+}
+
+async function handleExportDebugToggle(e) {
+  await chrome.storage.local.set({ [EXPORT_DEBUG_KEY]: !!e.target.checked });
 }
 
 async function checkExportStatus() {
@@ -165,6 +225,8 @@ async function handleLoadFolders() {
       hint.className = 'export-hint';
       folderListEl.style.display = 'none';
       actionsEl.style.display = 'none';
+      document.getElementById('exportDebugRow').style.display = 'none';
+      document.getElementById('exportDebugHint').style.display = 'none';
       exportBtn.style.display = 'none';
       return;
     }
@@ -183,6 +245,8 @@ async function handleLoadFolders() {
 
     folderListEl.style.display = 'flex';
     actionsEl.style.display = 'flex';
+    document.getElementById('exportDebugRow').style.display = 'flex';
+    document.getElementById('exportDebugHint').style.display = 'block';
     exportBtn.style.display = 'inline-flex';
     document.getElementById('selectAllFolders').checked = false;
 
@@ -232,6 +296,7 @@ async function handleExportJson() {
   const resp = await chrome.runtime.sendMessage({
     type: 'EXPORT_START',
     folders: selected,
+    debugCapture: document.getElementById('exportDebugToggle').checked,
   });
 
   if (!resp?.success) {
@@ -272,7 +337,11 @@ async function pollExportStatus() {
       for (let i = lastDownloadedIndex + 1; i < status.results.length; i++) {
         const r = status.results[i];
         if (r.success && r.tweets) {
-          downloadJson(r.tweets, r.folderName, r.tweets.length);
+          const timestamp = getExportTimestamp();
+          downloadJson(r.tweets, r.folderName, r.tweets.length, timestamp);
+          if (shouldDownloadDebug(r.debug)) {
+            downloadDebugJson(r.debug, r.folderName, r.tweets.length, timestamp);
+          }
           lastDownloadedIndex = i;
         } else if (!r.success) {
           lastDownloadedIndex = i; // skip failed ones
@@ -336,9 +405,12 @@ function onExportFinished(status) {
     const results = status?.results || [];
     const totalTweets = results.reduce((sum, r) => sum + (r.tweets?.length || 0), 0);
     const successCount = results.filter(r => r.success).length;
+    const debugCount = results.reduce((sum, r) => sum + (r.debug?.missingAuthorCount || 0), 0);
     progressFill.style.width = '100%';
     progressText.textContent = 'Done!';
-    hint.textContent = `Exported ${totalTweets} tweet(s) from ${successCount} folder(s)`;
+    hint.textContent = debugCount > 0
+      ? `Exported ${totalTweets} tweet(s) from ${successCount} folder(s) · ${debugCount} missing-author record(s) captured`
+      : `Exported ${totalTweets} tweet(s) from ${successCount} folder(s)`;
     hint.className = 'export-hint success';
   }
 
@@ -350,16 +422,29 @@ function onExportFinished(status) {
   chrome.runtime.sendMessage({ type: 'EXPORT_CLEAR' });
 }
 
-function downloadJson(tweets, folderName, count) {
-  const json = JSON.stringify(tweets, null, 2);
+function downloadJson(tweets, folderName, count, timestamp = getExportTimestamp()) {
+  const safeName = folderName.replace(/[\\/:*?"<>|]/g, '_');
+  triggerJsonDownload(tweets, `${safeName}-${count}-${timestamp}.json`);
+}
+
+function downloadDebugJson(debug, folderName, count, timestamp = getExportTimestamp()) {
+  const safeName = folderName.replace(/[\\/:*?"<>|]/g, '_');
+  triggerJsonDownload(debug, `${safeName}-${count}-${timestamp}.debug.json`);
+}
+
+function shouldDownloadDebug(debug) {
+  return !!(debug?.enabled && debug?.missingAuthorCount);
+}
+
+function getExportTimestamp() {
+  const now = new Date();
+  return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+}
+
+function triggerJsonDownload(data, filename) {
+  const json = JSON.stringify(data, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
-
-  const now = new Date();
-  const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
-  const safeName = folderName.replace(/[\\/:*?"<>|]/g, '_');
-  const filename = `${safeName}-${count}-${ts}.json`;
-
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
@@ -367,4 +452,59 @@ function downloadJson(tweets, folderName, count) {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+// ── Diagnostics ──
+function setupDiagnostics() {
+  document.getElementById('helpBtn').addEventListener('click', showTroubleshooting);
+  document.getElementById('closeTroubleshootingBtn').addEventListener('click', hideTroubleshooting);
+  document.getElementById('clearHashBtn').addEventListener('click', handleClearHash);
+}
+
+function showTroubleshooting() {
+  const panel = document.getElementById('troubleshootingPanel');
+  panel.style.display = 'block';
+  
+  // Scroll to bottom
+  setTimeout(() => {
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 100);
+}
+
+function hideTroubleshooting() {
+  document.getElementById('troubleshootingPanel').style.display = 'none';
+}
+
+async function handleClearHash() {
+  const btn = document.getElementById('clearHashBtn');
+  
+  if (!confirm('Clear all API hash cache?\n\nYou will need to manually perform Twitter actions again to recapture them.')) {
+    return;
+  }
+  
+  btn.disabled = true;
+  btn.textContent = 'Clearing...';
+  
+  try {
+    await chrome.storage.local.remove(['queryHashes']);
+    
+    // Show success
+    const hint = document.getElementById('apiHint');
+    hint.textContent = '✅ Cache cleared! Follow the troubleshooting guide to recapture hashes.';
+    hint.style.color = '#00ba7c';
+    hint.className = 'api-hint success';
+    
+    // Reload hash status
+    setTimeout(async () => {
+      await loadHashStatus();
+      showTroubleshooting();
+    }, 1000);
+  } catch (err) {
+    const hint = document.getElementById('apiHint');
+    hint.textContent = '❌ Failed to clear cache: ' + err.message;
+    hint.style.color = '#f4212e';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Clear Hash Cache';
+  }
 }

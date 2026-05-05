@@ -106,7 +106,14 @@ async function graphqlRequest(operationName, queryId, variables, method = 'POST'
   let result;
 
   if (method === 'POST') {
-    const body = JSON.stringify({ variables, queryId });
+    const bodyObj = { variables, queryId };
+    
+    // Add features to POST requests (helps avoid 503 errors)
+    if (features) {
+      bodyObj.features = features;
+    }
+    
+    const body = JSON.stringify(bodyObj);
     result = await injectedFetch(url, 'POST', headers, body);
   } else {
     const paramObj = {
@@ -136,7 +143,11 @@ async function graphqlRequest(operationName, queryId, variables, method = 'POST'
     }
     if (status === 404) {
       // Don't clear hash immediately, may be temporary
-      throw new Error(`${operationName} failed (404), please refresh and retry`);
+      throw new Error(`${operationName} failed (404), hash may be expired. Try: 1) Clear extension cache 2) Manually bookmark a tweet on Twitter to recapture hash`);
+    }
+    if (status === 503) {
+      // Service Unavailable - could be rate limit, expired hash, or Twitter server issue
+      throw new Error(`${operationName} failed (503): Twitter API temporarily unavailable. This could mean: 1) Hash expired (clear cache and recapture) 2) Rate limited (wait a few minutes) 3) Twitter server issue (try again later)`);
     }
     throw new Error(`${operationName} failed (${status})`);
   }

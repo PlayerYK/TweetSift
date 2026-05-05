@@ -84,6 +84,13 @@
           <input type="checkbox" id="selectAllFolders"> Select All
         </label>
       </div>
+      <label class="export-debug" id="exportDebugRow" style="display:none;">
+        <input type="checkbox" id="exportDebugToggle">
+        <span>Capture raw debug when author data is missing</span>
+      </label>
+      <div class="export-debug-hint" id="exportDebugHint" style="display:none;">
+        Downloads an extra `*.debug.json` with raw GraphQL tweet fragments.
+      </div>
       <div class="export-progress" id="exportProgress" style="display:none;">
         <div class="export-progress-bar">
           <div class="export-progress-fill" id="progressFill"></div>
@@ -97,11 +104,99 @@
 
     <!-- API Status -->
     <section class="api-section">
-      <div class="section-title">API Status</div>
+      <div class="section-title">
+        API Status
+        <button class="help-btn" id="helpBtn" title="Show troubleshooting guide">?</button>
+      </div>
+      <div class="api-status-message" id="apiStatusMessage"></div>
       <div class="api-list" id="apiList">
         <!-- Populated by JS -->
       </div>
-      <div class="api-hint">Auto-collected while browsing Twitter</div>
+      <div class="api-hint" id="apiHint">Auto-collected while browsing Twitter</div>
+      <div class="api-actions">
+        <button class="api-action-btn danger" id="clearHashBtn">Clear Hash Cache</button>
+      </div>
+      
+      <!-- Troubleshooting panel (initially hidden) -->
+      <div class="troubleshooting-panel" id="troubleshootingPanel" style="display:none;">
+        <div class="troubleshooting-header">
+          <h3>🔧 Troubleshooting Guide</h3>
+          <button class="close-btn" id="closeTroubleshootingBtn">×</button>
+        </div>
+        <div class="troubleshooting-content">
+          <div class="troubleshooting-section">
+            <h4>❌ Getting 503 errors?</h4>
+            <p>API hashes may be expired. Follow these steps:</p>
+            <ol>
+              <li>Click <strong>"Clear Hash Cache"</strong> button above</li>
+              <li>Visit <a href="https://x.com" target="_blank">x.com</a></li>
+              <li>Perform the <strong>core actions</strong> below:</li>
+            </ol>
+          </div>
+          
+          <div class="action-list">
+            <div class="action-item core">
+              <span class="action-number core">1</span>
+              <div class="action-content">
+                <strong>bookmarkTweetToFolder</strong> <span class="action-badge core">Core</span>
+                <p>Bookmark any tweet → "Add to folder" → select a folder</p>
+              </div>
+            </div>
+            <div class="action-item core">
+              <span class="action-number core">2</span>
+              <div class="action-content">
+                <strong>createBookmarkFolder</strong> <span class="action-badge core">Core</span>
+                <p>Bookmark → "Add to folder" → "Create new folder"</p>
+              </div>
+            </div>
+            <div class="action-item core">
+              <span class="action-number core">3</span>
+              <div class="action-content">
+                <strong>BookmarkFoldersSlice</strong> <span class="action-badge core">Core</span>
+                <p>Visit <a href="https://x.com/i/bookmarks" target="_blank">Bookmarks page</a></p>
+              </div>
+            </div>
+            
+            <div class="action-divider">
+              <span>Optional (for extra features)</span>
+            </div>
+            
+            <div class="action-item optional">
+              <span class="action-number optional">4</span>
+              <div class="action-content">
+                <strong>CreateBookmark</strong> <span class="action-badge optional">Optional</span>
+                <p>Bookmark any tweet (click 🔖 icon)</p>
+              </div>
+            </div>
+            <div class="action-item optional">
+              <span class="action-number optional">5</span>
+              <div class="action-content">
+                <strong>DeleteBookmark</strong> <span class="action-badge optional">Optional</span>
+                <p>Unbookmark the tweet (click 🔖 again)</p>
+              </div>
+            </div>
+            <div class="action-item optional">
+              <span class="action-number optional">6</span>
+              <div class="action-content">
+                <strong>BookmarkFolderTimeline</strong> <span class="action-badge optional">Optional</span>
+                <p>Click any bookmark folder to view contents (for export feature)</p>
+              </div>
+            </div>
+            <div class="action-item optional">
+              <span class="action-number optional">7</span>
+              <div class="action-content">
+                <strong>RemoveTweetFromBookmarkFolder</strong> <span class="action-badge optional">Optional</span>
+                <p>⚠️ May not be available in Twitter's current UI. Skip if you can't find it.</p>
+              </div>
+            </div>
+          </div>
+          
+          <div class="troubleshooting-section">
+            <h4>✅ After completing all actions:</h4>
+            <p>1. Close this panel<br>2. All items should show green dots<br>3. Try using the extension again</p>
+          </div>
+        </div>
+      </div>
     </section>
   </div>
 
