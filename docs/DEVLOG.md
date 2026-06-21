@@ -1,6 +1,6 @@
 # Development Notes
 
-This public note tracks project-level maintenance decisions without including internal debugging transcripts or exported user data.
+This note tracks project-level maintenance decisions. Implementation details are documented in [Developer Guide](DEVELOPER-GUIDE.md); private exported user data should still stay out of the repository.
 
 ## Current Status
 
@@ -25,6 +25,7 @@ Completed before public release:
 - Removed unused background API/auth modules from the early implementation.
 - Removed unused `cookies` and `activeTab` permissions from the manifest.
 - Added an MIT license.
+- Added `docs/DEVELOPER-GUIDE.md` with the internal architecture, X operation hash flow, message contracts, export details, and troubleshooting notes.
 
 ## Maintenance Rules
 

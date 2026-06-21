@@ -95,6 +95,7 @@ npm run clean
 ### 文档
 
 - [Technical Design](docs/DESIGN.md)
+- [Developer Guide](docs/DEVELOPER-GUIDE.md)
 - [Bookmark State And Deduplication](docs/BOOKMARK-DEDUP.md)
 - [Development Notes](docs/DEVLOG.md)
 
@@ -195,6 +196,7 @@ Generated files live in `dist/` and should not be committed. Private exports sho
 ### Docs
 
 - [Technical Design](docs/DESIGN.md)
+- [Developer Guide](docs/DEVELOPER-GUIDE.md)
 - [Bookmark State And Deduplication](docs/BOOKMARK-DEDUP.md)
 - [Development Notes](docs/DEVLOG.md)
 

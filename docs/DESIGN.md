@@ -1,6 +1,6 @@
 # TweetSift Technical Design
 
-This document describes the current public architecture of TweetSift.
+This document describes the current architecture of TweetSift. For implementation-level details such as operation hashes, message contracts, export parsing, and troubleshooting, see [Developer Guide](DEVELOPER-GUIDE.md).
 
 ## Product Scope
 
