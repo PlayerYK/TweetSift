@@ -5,9 +5,7 @@
   "description": "One-key bookmark tweets into categorized folders",
   "permissions": [
     "storage",
-    "cookies",
-    "webRequest",
-    "activeTab"
+    "webRequest"
   ],
   "host_permissions": [
     "https://x.com/*",

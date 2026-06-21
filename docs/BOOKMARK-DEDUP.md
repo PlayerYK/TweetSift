@@ -1,166 +1,72 @@
-# 收藏去重问题：进展总结与后续决策
+# Bookmark State And Deduplication
 
-> 日期：2026-02-13
-> 最后更新：2026-02-13
-> 当前版本：v0.0.18
-> 状态：已落地（简化 `z` 键 + 接入 RemoveTweetFromBookmarkFolder）
+TweetSift keeps its local state deliberately small. X remains the source of truth for whether a post is bookmarked.
 
----
+## Two Bookmark States
 
-## 1) 背景与核心根因（简版）
+X bookmark folders involve two related states:
 
-问题本质不是"本地样式丢失"这么简单，而是 Twitter 书签体系有两层状态：
+- Bookmark pool state: whether the post is bookmarked at all.
+- Folder membership state: whether the bookmarked post is assigned to a specific folder.
 
-1. **书签池状态**（`bookmarked=true/false`，由 `CreateBookmark/DeleteBookmark` 驱动）
-2. **文件夹归档状态**（由 `bookmarkTweetToFolder` 等操作驱动）
+TweetSift handles both states when possible.
 
-历史问题出在我们早期绕过 `CreateBookmark`，只做了入文件夹，导致：
-- Twitter UI 仍可能判定为"未收藏"
-- 重复操作更容易发生
-- 本地状态与服务端状态容易漂移
+## Save Behavior
 
----
+When a user presses `1`, `2`, `3`, or `` ` ``:
 
-## 2) 到目前为止已完成的工作
+1. The content script finds the post nearest the viewport center.
+2. TweetSift checks whether it already appears bookmarked.
+3. If it is not bookmarked, TweetSift clicks X's native bookmark button.
+4. TweetSift then calls the folder assignment operation for the target folder.
+5. A local record is stored for today's deduplication and popup counters.
 
-## A. v0.0.12 阶段（第一轮止血）
+This avoids the old "in folder but not in X's bookmark pool" mismatch.
 
-- 视口回标：推文进入视口时，尝试回标已收藏状态
-- 重复提示优化：重复收藏提示改为友好确认
-- Toast 位置统一：统一到页面中上部
+## Remove Behavior
 
-## B. 恢复"接近原生"的收藏链路
+`z` removes the current post from bookmarks. It is intentionally not a historical undo stack.
 
-- 新增 Twitter 原生已收藏状态探测（优先读取按钮状态）
-- 收藏流程改为：
-  1) 先触发原生书签按钮（等价 CreateBookmark）
-  2) 再执行 `bookmarkTweetToFolder`
+When `z` is pressed:
 
-这一步解决了"只入文件夹、不入书签池"的核心断层问题。
+1. TweetSift verifies that the current post appears bookmarked.
+2. It clicks X's native bookmark button to remove the bookmark.
+3. If TweetSift has enough local folder data, it also attempts folder removal.
+4. It removes the local record and decrements local counters.
 
-## C. `z` 行为简化（v0.0.18）
+The folder removal call is best effort; the native unbookmark action is the important part.
 
-- `z` = 取消当前推文的收藏，仅此而已
-- 取消时同时调用 `DeleteBookmark` + `RemoveTweetFromBookmarkFolder`，确保书签池和文件夹都清理
-- 当前推文未收藏时，提示"当前推文未收藏"
-- **已移除撤销栈（undoStack）**：不再维护操作历史，`z` 不再有"回退最近操作"的语义
+## Local Dedup Store
 
-## D. 本地缓存策略调整（多轮实验后的当前结论）
+The local `bookmarked` store is scoped to the browser's local date:
 
-- 试过"永久历史去重"，后来回退
-- 当前采用：**仅当天去重缓存**
-- 另外增加策略：**禁用 -> 重新启用时清空会话缓存**，包括：
-  - `bookmarked`
-  - `folders`
-  - `stats`
+```json
+{
+  "date": "2026-06-21",
+  "tweets": {
+    "tweet_id": {
+      "category": 2,
+      "folderId": "...",
+      "time": 1780000000000
+    }
+  }
+}
+```
 
-## E. 文档与使用前提
+This prevents accidental duplicate saves during the current triage session without trying to mirror the user's entire X bookmark history.
 
-- README 已明确：书签文件夹能力通常需要 Premium/Blue 权限
+## Cache Reset
 
-## F. 接入 RemoveTweetFromBookmarkFolder（v0.0.18）
+When the extension is disabled and then enabled again, TweetSift clears:
 
-- `hash-watcher` 中新增捕获 `RemoveTweetFromBookmarkFolder` 的 query hash
-- 新增 API 封装 `removeTweetFromBookmarkFolder(queryId, tweetId, folderId)`
-- 本地收藏记录中增加 `folderId` 字段，用于取消时定位文件夹
-- `z` 取消收藏时，先 `DeleteBookmark`，再尝试 `RemoveTweetFromBookmarkFolder`（失败不阻塞）
+- `bookmarked`
+- `folders`
+- `stats`
 
----
+This gives users a simple way to reset local session state without clearing captured operation hashes.
 
-## 3) 当前实现现状（v0.0.18）
+## Known Limits
 
-### 收藏流程（1/2/3 或 `）
-
-1. 先检查当前推文是否已是原生收藏状态
-2. 若未收藏：触发原生按钮进入收藏池
-3. 调用 `bookmarkTweetToFolder` 归档到目标文件夹
-4. 本地记录收藏、统计与文件夹 ID
-
-### `z` 流程
-
-- 当前推文已收藏：调用 `DeleteBookmark` + `RemoveTweetFromBookmarkFolder`，清理本地记录/统计
-- 当前推文未收藏：提示"当前推文未收藏"
-
-### 启用/禁用切换
-
-- 从"禁用"切回"启用"时，清空本地缓存与统计
-
----
-
-## 4) 当前已知问题与限制
-
-1. **"取消后立即重分配"存在短暂竞态**
-   - 场景：A 分类收藏 -> `z` 取消 -> 立刻按 B 分类
-   - 可能出现提示"已收藏"，因为 Twitter UI 状态尚未刷新
-   - 结果：这次按键不会完成 B 分类归档，需要等 1~3 秒或触发重渲染后再按
-   - **已决策**：可接受，用户等一两秒再按即可
-
-2. **非 Premium/Blue 账号无法使用文件夹能力**
-   - 无法创建/写入书签文件夹
-
-3. **popup 统计是插件视角统计，不是服务端实时真值**
-   - 目前通过"启用时清缓存"把统计与本地缓存保持一致
-
----
-
-## 5) 已决策记录
-
-### 决策 D1：`z` 的产品语义 — **已决策**
-
-选项 1：`z` = 取消当前推文的收藏。不做重分配，不维护撤销栈。
-
-理由：扩展功能就是快捷收藏，`z` 就取消当前收藏。重分配需要指定目标分类，无法用单一快捷键完成，不做。
-
-### 决策 D2：是否实现"重分配优先"路径 — **已决策：不做**
-
-理由：重分配无法用一个快捷键动作完成。用户要换分类，先 `z` 取消再按新分类键即可。
-
-### 决策 D3：重分配失败时的降级策略 — **已决策：不适用**
-
-重分配方案不实施，此决策无需处理。
-
-### 决策 D4：popup 统计文案定义
-
-- 待定：建议用"今日通过 TweetSift 处理"
-
----
-
-## 6) 待实验清单
-
-## 实验 E1：接入 RemoveTweetFromBookmarkFolder — **已完成**
-
-- 在 `hash-watcher` 中捕获该 operation 的 query hash
-- 新增 API 封装与错误处理分支
-- 已作为 `z` 取消流程的一部分接入
-
-## ~~实验 E2：重分配链路验证~~ — **已取消**
-
-重分配方案不实施。
-
-## 实验 E3：一致性检查
-
-- 本地缓存、popup 统计、Twitter 书签池、Twitter 文件夹内容是否一致
-
-## 实验 E4：非 Premium 账号回退行为
-
-- 明确提示文案
-- 保证不出现"假成功"
-
----
-
-## 7) 建议的下一步
-
-1. 完成 E3：一致性检查验证
-2. 完成 E4：非 Premium 账号回退行为
-3. 确定 D4：popup 统计文案
-4. 更新 README / DESIGN / DEVLOG 的行为说明
-
----
-
-## 8) 结论（当前）
-
-- 早期"CreateBookmark 缺失"导致的主链路问题已基本补上
-- `z` 键已简化为"取消当前推文收藏"，同时清理书签池和文件夹
-- 撤销栈（undoStack）已移除，减少了复杂度和 MV3 Service Worker 休眠导致的不可靠性
-- 重分配方案评估后决定不做，理由是无法用单一快捷键完成
-- 下一阶段重点：一致性检查、非 Premium 回退行为、统计文案
+- If X's UI takes a moment to update after removal, immediately saving the same post to a different category may need a short wait.
+- Local popup stats count TweetSift activity, not all bookmarks on X.
+- If the account lacks Bookmark Folders access, folder assignment cannot succeed.

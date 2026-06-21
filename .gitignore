@@ -4,6 +4,11 @@ node_modules/
 # build output
 dist/
 
+# exported/private tweet data
+exports/
+docs/image-prompt-*.json
+*.debug.json
+
 # macOS
 .DS_Store
 

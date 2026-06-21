@@ -2,6 +2,7 @@
   "name": "tweetsift",
   "version": "0.0.41",
   "description": "TweetSift - Twitter Quick Bookmark Extension",
+  "license": "MIT",
   "private": true,
   "scripts": {
     "build": "node esbuild.config.js --bump=patch",
@@ -10,6 +11,6 @@
     "clean": "rm -rf dist"
   },
   "devDependencies": {
-    "esbuild": "^0.24.0"
+    "esbuild": "^0.28.1"
   }
 }

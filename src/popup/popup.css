@@ -221,24 +221,11 @@ kbd {
   background: #1a8cd8;
 }
 
-.export-select-all {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 12px;
-  color: #8b98a5;
-  cursor: pointer;
-}
-
-.export-select-all input[type="checkbox"] {
-  accent-color: #1d9bf0;
-}
-
 .export-folder-list {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-height: 180px;
+  max-height: 104px;
   overflow-y: auto;
   margin-bottom: 8px;
   padding-right: 4px;
@@ -337,12 +324,6 @@ kbd {
   margin-top: 1px;
   accent-color: #1d9bf0;
   flex-shrink: 0;
-}
-
-.export-debug-hint {
-  margin-bottom: 8px;
-  font-size: 11px;
-  color: #536471;
 }
 
 /* ── API Status ── */

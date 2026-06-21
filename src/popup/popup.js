@@ -171,7 +171,6 @@ let lastDownloadedIndex = -1;
 function setupExport() {
   document.getElementById('loadFoldersBtn').addEventListener('click', handleLoadFolders);
   document.getElementById('exportJsonBtn').addEventListener('click', handleExportJson);
-  document.getElementById('selectAllFolders').addEventListener('change', handleSelectAll);
   document.getElementById('exportDebugToggle').addEventListener('change', handleExportDebugToggle);
 
   // Check if an export is already running (popup was reopened)
@@ -201,7 +200,6 @@ async function handleLoadFolders() {
   const btn = document.getElementById('loadFoldersBtn');
   const hint = document.getElementById('exportHint');
   const folderListEl = document.getElementById('folderList');
-  const actionsEl = document.getElementById('exportActions');
   const exportBtn = document.getElementById('exportJsonBtn');
 
   btn.disabled = true;
@@ -224,9 +222,7 @@ async function handleLoadFolders() {
       hint.textContent = 'No bookmark folders found';
       hint.className = 'export-hint';
       folderListEl.style.display = 'none';
-      actionsEl.style.display = 'none';
       document.getElementById('exportDebugRow').style.display = 'none';
-      document.getElementById('exportDebugHint').style.display = 'none';
       exportBtn.style.display = 'none';
       return;
     }
@@ -244,11 +240,8 @@ async function handleLoadFolders() {
     }
 
     folderListEl.style.display = 'flex';
-    actionsEl.style.display = 'flex';
     document.getElementById('exportDebugRow').style.display = 'flex';
-    document.getElementById('exportDebugHint').style.display = 'block';
     exportBtn.style.display = 'inline-flex';
-    document.getElementById('selectAllFolders').checked = false;
 
     // Update export button state on checkbox change
     folderListEl.addEventListener('change', updateExportBtnState);
@@ -263,13 +256,6 @@ async function handleLoadFolders() {
     btn.disabled = false;
     btn.textContent = 'Load Folders';
   }
-}
-
-function handleSelectAll(e) {
-  const checked = e.target.checked;
-  const checkboxes = document.querySelectorAll('#folderList input[type="checkbox"]');
-  checkboxes.forEach(cb => { cb.checked = checked; });
-  updateExportBtnState();
 }
 
 function updateExportBtnState() {
